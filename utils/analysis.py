@@ -82,13 +82,7 @@ async def analyze_sabotage(content: str, quality_name: str, scenario_type: str =
     # 1. Try Gemini (Primary) - Using Flash for speed, but instructions are strict.
     if GEMINI_API_KEY:
         try:
-            model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
-                generation_config={
-                    "response_mime_type": "application/json",
-                    "temperature": 0.4
-                }
-            )
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
             response = await model.generate_content_async(prompt)
             data = json.loads(response.text)
             return {
@@ -160,7 +154,7 @@ async def generate_weekly_briefing(logs: list, quality_name: str) -> str:
 
     if GEMINI_API_KEY:
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
             response = await model.generate_content_async(prompt)
             return response.text
         except Exception as e:
@@ -212,7 +206,7 @@ async def generate_group_weekly_summary(users_data: list) -> str:
     # Use Gemini 1.5 Flash (as defined earlier in the file)
     if GEMINI_API_KEY:
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
             response = await model.generate_content_async(prompt)
             return response.text
         except Exception as e:
