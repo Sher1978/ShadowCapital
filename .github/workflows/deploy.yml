@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  PROJECT_ID: bot-lab-21910
+  PROJECT_ID: shershadow
   SERVICE_NAME: shadow-sprint-bot
   REGION: us-central1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
