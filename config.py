@@ -14,5 +14,4 @@ ADMIN_IDS = [int(id.strip()) for id in os.getenv("ADMIN_IDS", "").split(",") if 
 # Google Sheets URL for daily tasks
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1vGvlttP6SqfSdBSiD8Z4pn3iSfBSthtus5H54MDnsP8/edit?usp=sharing"
 
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN not found in .env")
+# Validation moved to startup logic in main.py
