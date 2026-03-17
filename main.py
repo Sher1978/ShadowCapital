@@ -4,7 +4,7 @@ import sys
 import os
 from aiohttp import web
 
-# Configure logging at the very top
+# 0. Immediate Logging Setup
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -12,6 +12,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+logger.info("🚩 [STARTUP] Phase 1: Environment Check")
+logger.info(f"🐍 Python version: {sys.version}")
+logger.info(f"📂 Working directory: {os.getcwd()}")
+logger.info(f"💾 Service: {os.getenv('K_SERVICE', 'local')}")
+
+# 1. Top-level Heavy Imports
+logger.info("📦 [STARTUP] Phase 2: Loading Heavy Libraries (aiogram)...")
+try:
+    from aiogram import Bot, Dispatcher
+    from aiogram.enums import ParseMode
+    from aiogram.client.default import DefaultBotProperties
+    logger.info("✅ aiogram loaded successfully")
+except Exception as e:
+    logger.error(f"❌ aiogram load FAILED: {e}")
+
+logger.info("📦 [STARTUP] Phase 3: Loading Project Modules...")
+try:
+    import config
+    from config import BOT_TOKEN
+    from bot.handlers.client import client_router
+    from bot.handlers.admin import admin_router
+    from bot.handlers.settings import settings_router
+    from database.connection import init_db
+    from utils.scheduler import setup_scheduler, reload_admin_jobs
+    logger.info("✅ Project modules loaded successfully")
+except Exception as e:
+    logger.error(f"❌ Project module load FAILED: {e}")
+
+# --- Helper: Health Check ---
 async def handle_health(request):
     return web.Response(text="Bot health check passed")
 
@@ -31,71 +60,46 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot (Attempt 18 - Final Launch).
-    Designed to be robust and provide clear logs at every step.
+    Main entry point for the bot (Attempt 19 - Stability Refresh).
+    All heavy imports are now handled at the module level.
     """
-    # 1. Start health server IMMEDIATELY to satisfy Cloud Run's port check
-    logger.info("📡 Starting health server on port 8080...")
+    # 1. Start health server
     await start_health_server()
     
-    # Tiny sleep to let the OS/Cloud Run settle
-    await asyncio.sleep(1)
-    
     try:
-        # 2. Sequential loading with explicit logs to catch the exact line of hang
-        logger.info("📦 Step 1: Importing aiogram basic components...")
-        from aiogram import Bot, Dispatcher
-        
-        logger.info("📦 Step 2: Importing aiogram enums/clients...")
-        from aiogram.enums import ParseMode
-        from aiogram.client.default import DefaultBotProperties
-        
-        logger.info("📦 Step 3: Loading bot configuration...")
-        import config
-        from config import BOT_TOKEN
-        
         if not BOT_TOKEN:
-            logger.error("❌ CRITICAL: BOT_TOKEN is empty! Check GitHub Secrets.")
+            logger.error("❌ CRITICAL: BOT_TOKEN is missing! Check GitHub Secrets.")
             raise ValueError("BOT_TOKEN is missing")
 
-        logger.info("📦 Step 4: Loading internal modules (handlers, db, utils)...")
-        from bot.handlers.client import client_router
-        from bot.handlers.admin import admin_router
-        from bot.handlers.settings import settings_router
-        from database.connection import init_db
-        from utils.scheduler import setup_scheduler, reload_admin_jobs
-        
-        # 3. Database Initialization
-        logger.info("🗄️ Step 5: Initializing SQLite database...")
+        # 2. Database Initialization
+        logger.info("🗄️ Initializing SQLite database...")
         await init_db()
         
-        # 4. Bot Initialization
-        logger.info("🤖 Step 6: Connecting to Telegram API...")
+        # 3. Bot Initialization
+        logger.info("🤖 Connecting to Telegram API...")
         bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         
-        # Verify connection (this will fail if token is wrong)
+        # Verify connection
         me = await bot.get_me()
-        logger.info(f"✅ Step 7: Successfully connected as @{me.username} (ID: {me.id})")
+        logger.info(f"✅ Successfully connected as @{me.username} (ID: {me.id})")
         
         dp = Dispatcher()
         dp.include_router(admin_router)
         dp.include_router(settings_router)
         dp.include_router(client_router)
         
-        # 5. Scheduler Initialization
-        logger.info("⏰ Step 8: Starting APScheduler and reloading jobs...")
+        # 4. Scheduler Initialization
+        logger.info("⏰ Starting APScheduler...")
         scheduler = setup_scheduler(bot)
         scheduler.start()
         await reload_admin_jobs(bot)
         
-        logger.info("🚀 Step 9: Bot is now active and polling for updates!")
+        logger.info("🚀 Bot is now active and polling!")
         await dp.start_polling(bot)
         
     except Exception as e:
         logger.error(f"💥 FATAL STARTUP ERROR: {e}", exc_info=True)
-        # We MUST keep the process alive so the health server doesn't stop.
-        # This allows Cloud Run to stay UP while we read the error logs.
-        logger.info("🛑 Entering idle state to preserve logs. Fix error and redeploy.")
+        # Keep process alive to preserve logs in Cloud Run
         while True:
             await asyncio.sleep(3600)
 
