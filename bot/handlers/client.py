@@ -52,7 +52,16 @@ async def activate_request_handler(message: types.Message):
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
         
-        if not user or user.status == "active" or user.status == "pending":
+        if not user:
+            # Re-create if deleted?
+            await command_start_handler(message)
+            return
+
+        if user.status == "active":
+            await message.answer("✅ Твой Shadow Sprint уже в разгаре! Используй кнопки ниже для работы.")
+            return
+        if user.status == "pending":
+            await message.answer("⏳ Твоя заявка на рассмотрении. Ожидай уведомления от куратора.")
             return
             
         text = (

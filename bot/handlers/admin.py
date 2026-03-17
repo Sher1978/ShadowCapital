@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from bot.states import AdminRegistration, AdminStates
 from database.connection import get_db_session
 from database.models import User, ShadowMap, AdminLog
-from sqlalchemy import select
+from sqlalchemy import select, func
 from aiogram.utils.markdown import hbold
 from bot.keyboards.builders import get_main_keyboard
 from config import ADMIN_IDS
@@ -197,6 +197,35 @@ async def show_active_page(message: types.Message, page: int = 0):
             await message.message.edit_text(text, reply_markup=builder.as_markup())
         else:
             await message.answer(text, reply_markup=builder.as_markup())
+
+@admin_router.message(F.text == "📊 Аналитика")
+async def admin_analytics_handler(message: types.Message):
+    if not is_admin(message.from_user.id):
+        return
+    
+    async with get_db_session() as session:
+        # Get counts
+        stmt_total = select(func.count(User.id))
+        stmt_active = select(func.count(User.id)).where(User.status == "active")
+        stmt_pending = select(func.count(User.id)).where(User.status == "pending")
+        
+        total_users = (await session.execute(stmt_total)).scalar()
+        active_users = (await session.execute(stmt_active)).scalar()
+        pending_users = (await session.execute(stmt_pending)).scalar()
+        
+        # Get average SFI for active users
+        stmt_avg_sfi = select(func.avg(User.sfi_index)).where(User.status == "active")
+        avg_sfi = (await session.execute(stmt_avg_sfi)).scalar() or 0.0
+        
+        text = (
+            f"📊 {hbold('Аналитика группы:')}\n\n"
+            f"👥 Всего пользователей: {total_users}\n"
+            f"🚀 Активных спринтов: {active_users}\n"
+            f"⏳ В очереди (Pending): {pending_users}\n\n"
+            f"📈 Средний SFI группы: {round(float(avg_sfi), 2)}\n\n"
+            f"💡 Для детальной статистики выберите клиента в списке '👥 Клиенты'."
+        )
+        await message.answer(text)
 
 @admin_router.callback_query(F.data.startswith("active_page_"))
 async def process_active_pagination(callback: types.CallbackQuery):
