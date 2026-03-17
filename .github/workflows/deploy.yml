@@ -27,7 +27,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for GCP
-        run: gcloud auth configure-docker --quiet
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
       - name: Build and Push Docker Image
         run: |
