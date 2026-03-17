@@ -19,5 +19,8 @@ COPY . .
 # Ensure the media and data directories exist
 RUN mkdir -p /app/media/audio /app/data
 
+# Expose port 8080 for Cloud Run
+EXPOSE 8080
+
 # Command to run the bot
 CMD ["python", "main.py"]

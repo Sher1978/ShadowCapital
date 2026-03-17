@@ -41,4 +41,4 @@ jobs:
             --platform managed \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},DATABASE_URL=sqlite+aiosqlite:///data/shadow_guardian.db"
+            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},DATABASE_URL=sqlite+aiosqlite:////app/data/shadow_guardian.db"
