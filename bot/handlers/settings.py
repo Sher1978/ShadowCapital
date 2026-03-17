@@ -2,7 +2,7 @@ from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.markdown import hbold
-from database.connection import async_session
+from database.connection import get_db_session
 from database.models import GlobalSettings
 import re
 
@@ -13,7 +13,7 @@ class SettingsState(StatesGroup):
 
 @settings_router.message(F.text == "⚙️ Настройки")
 async def settings_main_handler(message: types.Message):
-    async with async_session() as session:
+    async with get_db_session() as session:
         settings = await GlobalSettings.get_settings(session)
         
         text = (
@@ -63,7 +63,7 @@ async def process_time_input(message: types.Message, state: FSMContext):
     data = await state.get_data()
     time_type = data['time_type']
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         settings = await GlobalSettings.get_settings(session)
         if time_type == "morning": settings.morning_time = new_time
         elif time_type == "deadline": settings.deadline_time = new_time

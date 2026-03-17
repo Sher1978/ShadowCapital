@@ -2,7 +2,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
-from database.connection import async_session
+from database.connection import get_db_session
 from database.models import User, ShadowLog, GlobalSettings
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
@@ -17,7 +17,7 @@ _scheduler = None
 
 async def send_admin_morning_pulse(bot: Bot):
     """09:00 UTC: Notify admin about SFI levels."""
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.status == "active")
         result = await session.execute(stmt)
         users = result.scalars().all()
@@ -40,7 +40,7 @@ async def send_admin_morning_pulse(bot: Bot):
 
 async def send_admin_deadline_control(bot: Bot):
     """20:30 UTC: List users who missed reports."""
-    async with async_session() as session:
+    async with get_db_session() as session:
         # Simple check: active users who haven't sent a log today
         today = datetime.utcnow().date()
         stmt = select(User).where(User.status == "active").options(joinedload(User.logs))
@@ -69,7 +69,7 @@ async def send_admin_deadline_control(bot: Bot):
 
 async def send_admin_evening_concentrate(bot: Bot):
     """21:30 UTC: Summary of the day's insights."""
-    async with async_session() as session:
+    async with get_db_session() as session:
         today = datetime.utcnow().date()
         # Fetch 5 latest insights from today's logs or user records
         stmt = select(User).where(User.status == "active", User.last_insight != None).order_by(User.sfi_index.desc()).limit(5)
@@ -96,7 +96,7 @@ async def send_morning_impulse(bot: Bot, user: User = None):
     """
     now = datetime.utcnow()
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         if user:
             users = [user]
         else:
@@ -139,7 +139,7 @@ async def request_evening_logs(bot: Bot, user: User = None):
     """
     now = datetime.utcnow()
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         if user:
             users = [user]
         else:
@@ -169,7 +169,7 @@ async def send_group_weekly_report(bot: Bot):
     Generates and sends a summary report for the whole active group to admins.
     """
     logging.info("Generating group weekly report")
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.status == "active")
         result = await session.execute(stmt)
         users = result.scalars().all()
@@ -211,7 +211,7 @@ async def dynamic_scheduler_job(bot: Bot):
     current_time_str = now.strftime("%H:%M")
     today = now.date()
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.role == "client").options(joinedload(User.shadow_map))
         result = await session.execute(stmt)
         users = result.unique().scalars().all()
@@ -241,7 +241,7 @@ async def reload_admin_jobs(bot: Bot):
         try: _scheduler.remove_job(job_id)
         except: pass
         
-    async with async_session() as session:
+    async with get_db_session() as session:
         settings = await GlobalSettings.get_settings(session)
         
         # Helper to parse HH:MM

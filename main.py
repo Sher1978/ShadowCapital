@@ -17,28 +17,20 @@ logger.info(f"🐍 Python version: {sys.version}")
 logger.info(f"📂 Working directory: {os.getcwd()}")
 logger.info(f"💾 Service: {os.getenv('K_SERVICE', 'local')}")
 
-# 1. Top-level Heavy Imports
-logger.info("📦 [STARTUP] Phase 2: Loading Heavy Libraries (aiogram)...")
-try:
-    from aiogram import Bot, Dispatcher
-    from aiogram.enums import ParseMode
-    from aiogram.client.default import DefaultBotProperties
-    logger.info("✅ aiogram loaded successfully")
-except Exception as e:
-    logger.error(f"❌ aiogram load FAILED: {e}")
+logger.info("📦 [STARTUP] Phase 2: Loading Project Modules...")
+import config
+from config import BOT_TOKEN
+from bot.handlers.client import client_router
+from bot.handlers.admin import admin_router
+from bot.handlers.settings import settings_router
+from database.connection import init_db
+from utils.scheduler import setup_scheduler, reload_admin_jobs
+logger.info("✅ Project modules loaded successfully")
 
-logger.info("📦 [STARTUP] Phase 3: Loading Project Modules...")
-try:
-    import config
-    from config import BOT_TOKEN
-    from bot.handlers.client import client_router
-    from bot.handlers.admin import admin_router
-    from bot.handlers.settings import settings_router
-    from database.connection import init_db
-    from utils.scheduler import setup_scheduler, reload_admin_jobs
-    logger.info("✅ Project modules loaded successfully")
-except Exception as e:
-    logger.error(f"❌ Project module load FAILED: {e}")
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+logger.info("✅ aiogram loaded successfully")
 
 # --- Helper: Health Check ---
 async def handle_health(request):
@@ -60,7 +52,7 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot (Attempt 19 - Stability Refresh).
+    Main entry point for the bot (Attempt 22 - Startup Fix).
     All heavy imports are now handled at the module level.
     """
     # 1. Start health server
