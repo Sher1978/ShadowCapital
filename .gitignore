@@ -1,0 +1,29 @@
+# Environment variables
+.env
+
+# Database
+*.db
+*.sqlite3
+
+# Credentials
+credentials.json
+*.pem
+*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Media/Logs
+/media/audio/
+*.log
+
+# Project specific
+db_debug.py
+hard_reset_db.py
+verify_monitoring.py
+check_gsheets_status.py
+requirements_utf8.txt
