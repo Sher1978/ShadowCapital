@@ -31,7 +31,7 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot.
+    Main entry point for the bot (Attempt 18 - Final Launch).
     Designed to be robust and provide clear logs at every step.
     """
     # 1. Start health server IMMEDIATELY to satisfy Cloud Run's port check
