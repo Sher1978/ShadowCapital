@@ -12,7 +12,10 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False,
-    connect_args={"timeout": 30}, # Add timeout for busy-wait
+    connect_args={"timeout": 30},
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True
 )
 
 # Enable WAL mode for better concurrency
@@ -23,15 +26,25 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.close()
 
-async_session = sessionmaker(
+async_session_factory = sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False
 )
 
 async def init_db():
     async with engine.begin() as conn:
-        # await conn.run_sync(Base.metadata.drop_all) # Dangerous, use only for resets
         await conn.run_sync(Base.metadata.create_all)
 
-async def get_session() -> AsyncSession:
-    async with async_session() as session:
-        yield session
+# Use a context manager for more reliable session closing
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def get_db_session():
+    async with async_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

@@ -2,7 +2,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram import Router, types, F, Bot
 from aiogram.fsm.context import FSMContext
 from bot.states import AdminRegistration, AdminStates
-from database.connection import async_session
+from database.connection import get_db_session
 from database.models import User, ShadowMap, AdminLog
 from sqlalchemy import select
 from aiogram.utils.markdown import hbold
@@ -24,7 +24,7 @@ async def trigger_morning_handler(message: types.Message, bot: Bot):
     await message.answer("Запускаю рассылку утренних импульсов вручную...")
     await send_morning_impulse(bot)
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         session.add(AdminLog(admin_id=message.from_user.id, action="trigger_morning"))
         await session.commit()
         
@@ -106,7 +106,7 @@ async def show_pending_page(message: types.Message, page: int = 0):
     limit = 10
     offset = page * limit
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.status == "pending").limit(limit).offset(offset)
         result = await session.execute(stmt)
         users = result.scalars().all()
@@ -160,7 +160,7 @@ async def show_active_page(message: types.Message, page: int = 0):
     limit = 10
     offset = page * limit
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.status == "active").limit(limit).offset(offset)
         result = await session.execute(stmt)
         users = result.scalars().all()
@@ -207,7 +207,7 @@ async def process_active_pagination(callback: types.CallbackQuery):
 async def view_user_stats_handler(callback: types.CallbackQuery):
     tg_id = int(callback.data.split("_")[-1])
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == tg_id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -255,7 +255,7 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
 async def view_pending_user(callback: types.CallbackQuery):
     tg_id = int(callback.data.split("_")[-1])
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == tg_id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -284,7 +284,7 @@ async def view_pending_user(callback: types.CallbackQuery):
 @admin_router.callback_query(F.data.startswith("reject_user_"))
 async def reject_user_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == tg_id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -304,7 +304,7 @@ async def approve_user_start_registration(callback: types.CallbackQuery, state: 
     # Pre-fill FSM and start the registration questions
     await state.update_data(tg_id=tg_id)
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == tg_id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -416,7 +416,7 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
     data = await state.get_data()
     scenario_type = data['scenario_type']
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         # Create ShadowMap
         shadow_map = ShadowMap(
             quality_name=data['quality_name'],
@@ -515,7 +515,7 @@ async def process_edit_quality(message: types.Message, state: FSMContext):
     client_id = data.get("edit_client_id")
     new_quality = message.text.strip()
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == client_id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -614,7 +614,7 @@ async def process_edit_scenario_confirmation(message: types.Message, state: FSMC
     client_id = data.get("edit_client_id")
     new_scenario = data.get("edit_scenario_type")
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == client_id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()

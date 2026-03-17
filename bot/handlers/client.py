@@ -1,7 +1,7 @@
 from aiogram import Router, types, F, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.utils.markdown import hbold, hitalic
-from database.connection import async_session
+from database.connection import get_db_session
 from database.models import User, ShadowMap, ShadowLog
 from sqlalchemy import select, delete
 from sqlalchemy.orm import joinedload
@@ -21,7 +21,7 @@ client_router = Router()
 async def command_start_handler(message: types.Message) -> None:
     is_admin = message.from_user.id in ADMIN_IDS
     
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == message.from_user.id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -47,7 +47,7 @@ async def command_start_handler(message: types.Message) -> None:
 
 @client_router.message(F.text == "🚀 Активировать Спринт")
 async def activate_request_handler(message: types.Message):
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == message.from_user.id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -75,7 +75,7 @@ async def activate_request_handler(message: types.Message):
 
 @client_router.callback_query(F.data == "accept_rules")
 async def accept_rules_handler(callback: types.CallbackQuery, bot: Bot):
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == callback.from_user.id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -125,7 +125,7 @@ async def how_it_works_handler(message: types.Message) -> None:
 
 @client_router.message(F.text == "Моя цель")
 async def my_goal_handler(message: types.Message) -> None:
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == message.from_user.id).options(joinedload(User.shadow_map))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -143,7 +143,7 @@ async def my_goal_handler(message: types.Message) -> None:
 
 @client_router.message(F.text == "🆘 SOS")
 async def sos_handler(message: types.Message, bot: Bot):
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt = select(User).where(User.tg_id == message.from_user.id)
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
@@ -171,7 +171,7 @@ async def delete_my_data_handler(message: types.Message):
     """
     Deletes all user logs (GDPR-like compliance).
     """
-    async with async_session() as session:
+    async with get_db_session() as session:
         stmt_user = select(User).where(User.tg_id == message.from_user.id)
         result = await session.execute(stmt_user)
         user = result.scalar_one_or_none()
@@ -191,7 +191,7 @@ async def delete_my_data_handler(message: types.Message):
 
 @client_router.message(F.text | F.voice | F.audio)
 async def log_handler(message: types.Message, bot: Bot):
-    async with async_session() as session:
+    async with get_db_session() as session:
         # Check if user is a client
         stmt = select(User).where(User.tg_id == message.from_user.id)
         result = await session.execute(stmt)
