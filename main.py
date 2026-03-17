@@ -4,6 +4,7 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
+import os
 from aiohttp import web
 from config import BOT_TOKEN
 from bot.handlers.client import client_router
@@ -20,14 +21,19 @@ async def start_health_server():
     app.router.add_get("/", handle_health)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    port = int(os.environ.get("PORT", "8080"))
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+    logging.info(f"Health check server started on port {port}")
 
 async def main() -> None:
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    
+    # Start health check server for Cloud Run as early as possible
+    await start_health_server()
+    
     # Initialize DB
     await init_db()
-    
-    # Initialize Bot and Dispatcher
     dp = Dispatcher()
     dp.include_router(admin_router)
     dp.include_router(settings_router)
@@ -40,11 +46,6 @@ async def main() -> None:
     scheduler = setup_scheduler(bot)
     scheduler.start()
     await reload_admin_jobs(bot)
-    
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    
-    # Start health check server for Cloud Run
-    await start_health_server()
     
     await dp.start_polling(bot)
 

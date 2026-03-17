@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Ensure the media directory exists
-RUN mkdir -p /app/media/audio
+# Ensure the media and data directories exist
+RUN mkdir -p /app/media/audio /app/data
 
 # Command to run the bot
 CMD ["python", "main.py"]
