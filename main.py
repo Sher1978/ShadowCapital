@@ -34,38 +34,52 @@ async def main() -> None:
     await start_health_server()
     
     try:
-        # 2. Lazy imports to prevent top-level crashes
-        logger.info("📦 Loading bot components...")
+        # 2. Lazy imports to pinpoint which module causes a hang/crash
+        logger.info("📦 Importing aiogram...")
         from aiogram import Bot, Dispatcher
         from aiogram.enums import ParseMode
         from aiogram.client.default import DefaultBotProperties
         
-        from config import BOT_TOKEN
+        logger.info("📦 Importing config...")
+        from config import BOT_TOKEN, ADMIN_IDS
+        
+        if not BOT_TOKEN:
+            logger.error("❌ BOT_TOKEN is missing! Please set it in GitHub Secrets.")
+            raise ValueError("BOT_TOKEN is None")
+
+        logger.info("📦 Importing handlers...")
         from bot.handlers.client import client_router
         from bot.handlers.admin import admin_router
         from bot.handlers.settings import settings_router
+        
+        logger.info("📦 Importing database and scheduler...")
         from database.connection import init_db
+        from utils.scheduler import setup_scheduler, reload_admin_jobs
         
         # 3. Initialize DB
         logger.info("🗄️ Initializing database...")
         await init_db()
         
         # 4. Initialize Bot
-        logger.info("🤖 Starting bot...")
+        logger.info("🤖 Connecting to Telegram...")
+        bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+        
+        # Verify connection
+        me = await bot.get_me()
+        logger.info(f"✅ Connected as @{me.username} (ID: {me.id})")
+        
         dp = Dispatcher()
         dp.include_router(admin_router)
         dp.include_router(settings_router)
         dp.include_router(client_router)
         
-        bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-        
         # 5. Setup Scheduler
-        from utils.scheduler import setup_scheduler, reload_admin_jobs
+        logger.info("⏰ Starting scheduler...")
         scheduler = setup_scheduler(bot)
         scheduler.start()
         await reload_admin_jobs(bot)
         
-        logger.info("✅ Bot is ready and polling!")
+        logger.info("🚀 Bot is ready and polling!")
         await dp.start_polling(bot)
         
     except Exception as e:
