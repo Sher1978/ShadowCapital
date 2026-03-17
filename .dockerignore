@@ -1,0 +1,11 @@
+.git
+__pycache__
+*.pyc
+.env
+.idea
+.vscode
+venv
+shadow_guardian.db
+credentials.json
+media/audio/*
+docs/*.md.bak
