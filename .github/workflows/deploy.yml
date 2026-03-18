@@ -36,7 +36,7 @@ jobs:
 
       - name: Create Persistence Bucket (if not exists)
         run: |
-          gcloud storage buckets create gs://shadow-bot-persistence-shershadow --project ${{ env.PROJECT_ID }} --location ${{ env.REGION }} --continue-on-error || true
+          gcloud storage buckets create gs://shadow-bot-persistence-shershadow --project ${{ env.PROJECT_ID }} --location ${{ env.REGION }} || true
 
       - name: Deploy to Cloud Run
         run: |

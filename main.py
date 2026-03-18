@@ -17,21 +17,7 @@ logger.info(f"🐍 Python version: {sys.version}")
 logger.info(f"📂 Working directory: {os.getcwd()}")
 logger.info(f"💾 Service: {os.getenv('K_SERVICE', 'local')}")
 
-logger.info("📦 [STARTUP] Phase 2: Loading Project Modules...")
-import config
-from config import BOT_TOKEN
-from bot.handlers.client import client_router
-from bot.middlewares.fsm_reset import FsmResetMiddleware
-from bot.handlers.admin import admin_router
-from bot.handlers.settings import settings_router
-from database.connection import init_db
-from utils.scheduler import setup_scheduler, reload_admin_jobs
-logger.info("✅ Project modules loaded successfully")
-
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
-logger.info("✅ aiogram loaded successfully")
+# Phase 2 imports moved inside main() to ensure early health server start
 
 # --- Helper: Health Check ---
 async def handle_health(request):
@@ -53,13 +39,29 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot (Attempt 36 - Admin Features & Stable GSheets).
-    All heavy imports are now handled at the module level.
+    Main entry point for the bot (Attempt 37 - Early Health).
+    Starts health server BEFORE heavy imports to prevent Cloud Run timeouts.
     """
-    # 1. Start health server
+    # 1. Start health server IMMEDIATELY (Absolute priority for Cloud Run)
     await start_health_server()
     
     try:
+        # 2. Delayed (Lazy) Imports to speed up the first signal to Cloud Run
+        logger.info("📦 [STARTUP] Phase 2: Loading Project Modules...")
+        import config
+        from config import BOT_TOKEN
+        from bot.handlers.client import client_router
+        from bot.middlewares.fsm_reset import FsmResetMiddleware
+        from bot.handlers.admin import admin_router
+        from bot.handlers.settings import settings_router
+        from database.connection import init_db
+        from utils.scheduler import setup_scheduler, reload_admin_jobs
+        
+        from aiogram import Bot, Dispatcher
+        from aiogram.enums import ParseMode
+        from aiogram.client.default import DefaultBotProperties
+        logger.info("✅ Project modules loaded successfully")
+
         if not BOT_TOKEN:
             logger.error("❌ CRITICAL: BOT_TOKEN is missing! Check GitHub Secrets.")
             raise ValueError("BOT_TOKEN is missing")
