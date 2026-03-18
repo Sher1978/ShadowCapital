@@ -54,7 +54,6 @@ async def main() -> None:
         from bot.middlewares.fsm_reset import FsmResetMiddleware
         from bot.handlers.admin import admin_router
         from bot.handlers.settings import settings_router
-        from database.connection import init_db
         from utils.scheduler import setup_scheduler, reload_admin_jobs
         
         from aiogram import Bot, Dispatcher
@@ -66,19 +65,31 @@ async def main() -> None:
             logger.error("❌ CRITICAL: BOT_TOKEN is missing! Check GitHub Secrets.")
             raise ValueError("BOT_TOKEN is missing")
 
-        # 2. Database Initialization
-        logger.info("🗄️ Initializing SQLite database...")
-        await init_db()
+        # 2. Firebase Initialization (Implicitly handled by importing FirestoreDB)
+        logger.info("🔥 Initializing Firebase Firestore...")
         
-        # 3. Bot Initialization
+        # 3. Bot & FSM Initialization
         logger.info("🤖 Connecting to Telegram API...")
         bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         
+        # Redis FSM Setup
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            from aiogram.fsm.storage.redis import RedisStorage
+            from redis.asyncio import Redis
+            logger.info(f"💾 Using Redis for FSM storage: {redis_url[:15]}...")
+            redis = Redis.from_url(redis_url)
+            storage = RedisStorage(redis)
+        else:
+            from aiogram.fsm.storage.memory import MemoryStorage
+            logger.warning("⚠️ REDIS_URL not found. Using ephemeral MemoryStorage for FSM.")
+            storage = MemoryStorage()
+
         # Verify connection
         me = await bot.get_me()
         logger.info(f"✅ Successfully connected as @{me.username} (ID: {me.id})")
         
-        dp = Dispatcher()
+        dp = Dispatcher(storage=storage)
         dp.message.middleware(FsmResetMiddleware())
         dp.include_router(admin_router)
         dp.include_router(settings_router)
