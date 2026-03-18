@@ -10,10 +10,20 @@ from config import GOOGLE_SHEET_URL as SPREADSHEET_URL
 # Scope for Google Sheets and Drive
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
+_GS_CLIENT = None
+_GS_CLIENT_EXPIRY = None
+
 def get_gsheets_client():
     """
-    Returns a gspread client using credentials.json.
+    Returns a cached or fresh gspread client using credentials.json.
     """
+    global _GS_CLIENT, _GS_CLIENT_EXPIRY
+    
+    # Simple caching: if client exists, return it. 
+    # gspread usually handles refresh, but if not, we could check expiry.
+    if _GS_CLIENT:
+        return _GS_CLIENT
+
     creds_path = "credentials.json"
     if not os.path.exists(creds_path):
         logging.error("credentials.json not found. Google Sheets integration disabled.")
@@ -21,8 +31,9 @@ def get_gsheets_client():
     
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, SCOPE)
-        client = gspread.authorize(creds)
-        return client
+        _GS_CLIENT = gspread.authorize(creds)
+        logging.info("✅ Google Sheets client authorized and cached.")
+        return _GS_CLIENT
     except Exception as e:
         logging.error(f"Failed to authorize Google Sheets: {e}")
         return None

@@ -9,8 +9,9 @@ def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
         builder.button(text="👥 Клиенты")
         builder.button(text="⏳ Заявки")
         builder.button(text="📊 Аналитика")
+        builder.button(text="➕ Добавить клиента")
         builder.button(text="⚙️ Настройки")
-        builder.adjust(2, 2)
+        builder.adjust(2, 2, 1)
         return builder.as_markup(resize_keyboard=True)
 
     # Client-specific menu

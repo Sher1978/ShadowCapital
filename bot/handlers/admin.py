@@ -420,13 +420,14 @@ async def approve_user_start_registration(callback: types.CallbackQuery, state: 
     await callback.message.answer(f"Начинаем регистрацию для ID {tg_id}.\nВведите название Теневого Качества (L1):")
     await callback.answer()
 
+@admin_router.message(F.text == "➕ Добавить клиента")
 @admin_router.message(Command("add_client"))
 async def start_add_client(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     
     await state.set_state(AdminRegistration.waiting_for_username)
-    await message.answer("Введите Telegram Ник (@username) нового клиента:")
+    await message.answer("Введите Telegram Ник (@username) нового клиента для активации:")
 
 @admin_router.message(AdminRegistration.waiting_for_username)
 async def process_username(message: types.Message, state: FSMContext):
