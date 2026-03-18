@@ -150,10 +150,22 @@ async def request_evening_logs(bot: Bot, user: User = None):
         for u in users:
             if not u.shadow_map: continue
             
+            # Calculate day
+            start_date = u.sprint_start_date or u.created_at
+            day = (now - start_date).days + 1
+            
+            # Fetch dynamic questions from Sheets
+            questions_text = await get_evening_question_from_sheets(day, u.scenario_type or "Sovereign")
+            
+            if not questions_text:
+                questions_text = (
+                    "Как сегодня проявилось твое теневое качество? Какое сопротивление ты почувствовал(а)?\n\n"
+                    "Пришли текст или запиши голосовое сообщение."
+                )
+            
             text = (
-                "🌙 Время для вечернего Shadow Log.\n\n"
-                "Как сегодня проявилось твое теневое качество? Какое сопротивление ты почувствовал(а)?\n\n"
-                "Пришли текст или запиши голосовое сообщение."
+                f"🌙 {hbold('Время для вечернего Shadow Log.')}\n\n"
+                f"{questions_text}"
             )
             try:
                 await bot.send_message(u.tg_id, text)

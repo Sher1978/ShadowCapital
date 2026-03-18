@@ -53,7 +53,7 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot (Attempt 27 - Analysis Refactoring).
+    Main entry point for the bot (Attempt 28 - Dynamic Evening Questions).
     All heavy imports are now handled at the module level.
     """
     # 1. Start health server

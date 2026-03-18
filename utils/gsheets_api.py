@@ -3,6 +3,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import logging
 import os
 import asyncio
+import random
 from datetime import datetime
 from config import GOOGLE_SHEET_URL as SPREADSHEET_URL
 
@@ -100,19 +101,55 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
 
     return await asyncio.to_thread(_get_task)
 
-async def get_evening_question_from_sheets():
+async def get_evening_question_from_sheets(user_day: int, scenario: str):
     """
-    Fetches questions from EVENING_LOGS sheet.
+    Fetches questions from EVENING_LOGS sheet based on user_day and scenario.
     """
     def _get_questions():
         client = get_gsheets_client()
         if not client: return None
+        
+        # 1. Determine week
+        if 1 <= user_day <= 7: week = 1
+        elif 8 <= user_day <= 14: week = 2
+        elif 15 <= user_day <= 21: week = 3
+        elif 22 <= user_day <= 30: week = 4
+        else: week = 1 # Fallback
+        
         try:
             sh = client.open_by_url(SPREADSHEET_URL)
             worksheet = sh.worksheet("EVENING_LOGS")
             records = worksheet.get_all_records()
-            if records:
-                return [r.get('Вопрос') for r in records if r.get('Вопрос')]
+            
+            # 2. Filter by week and scenario
+            target_scenario = scenario.lower()
+            matches = [
+                r for r in records 
+                if str(r.get('Неделя')) == str(week) and str(r.get('Этап (Сценарий)', '')).lower() == target_scenario
+            ]
+            
+            # 3. Fallback to "Общий" if no scenario-specific questions found
+            if not matches:
+                matches = [
+                    r for r in records 
+                    if str(r.get('Неделя')) == str(week) and str(r.get('Этап (Сценарий)', '')).lower() == "общий"
+                ]
+            
+            if not matches:
+                return None
+                
+            # 4. Pick random variant
+            selected_row = random.choice(matches)
+            
+            # 5. Concatenate questions (Вопрос 1, 2, 3, 4)
+            questions = []
+            for i in range(1, 5):
+                q = selected_row.get(f'Вопрос {i}')
+                if q and str(q).strip():
+                    questions.append(str(q).strip())
+            
+            return "\n\n".join(questions) if questions else None
+
         except Exception as e:
             logging.error(f"Error getting evening questions: {e}")
         return None
