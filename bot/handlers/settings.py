@@ -6,10 +6,10 @@ from database.connection import get_db_session
 from database.models import GlobalSettings
 import re
 
-settings_router = Router()
+from config import ADMIN_IDS
 
-class SettingsState(StatesGroup):
-    waiting_for_time = State()
+def is_admin(user_id: int) -> bool:
+    return user_id in ADMIN_IDS
 
 @settings_router.message(F.text == "⚙️ Настройки")
 async def settings_main_handler(message: types.Message):
@@ -31,9 +31,36 @@ async def settings_main_handler(message: types.Message):
         builder.button(text="🚩 Дедлайн", callback_data="set_time_deadline")
         builder.button(text="🧠 Вечер", callback_data="set_time_evening")
         builder.button(text="📊 Воскресенье", callback_data="set_time_sunday")
+        
+        if is_admin(message.from_user.id):
+            builder.button(text="🌅 Утренний Импульс", callback_data="trigger_morning")
+            builder.button(text="📝 Вечерний Лог", callback_data="trigger_evening")
+            builder.button(text="📊 Итоги Недели", callback_data="trigger_weekly")
+            
         builder.adjust(2)
         
         await message.answer(text, reply_markup=builder.as_markup())
+
+@settings_router.callback_query(F.data.startswith("trigger_"))
+async def trigger_manual_callback(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("У вас нет прав администратора.", show_alert=True)
+        return
+        
+    action = callback.data.replace("trigger_", "")
+    from utils.scheduler import send_morning_impulse, send_weekly_briefings, request_evening_logs
+    
+    if action == "morning":
+        await callback.message.answer("🚀 Запускаю рассылку утренних импульсов...")
+        await send_morning_impulse(callback.bot)
+    elif action == "evening":
+        await callback.message.answer("📝 Запускаю сбор вечерних логов...")
+        await request_evening_logs(callback.bot)
+    elif action == "weekly":
+        await callback.message.answer("📊 Запускаю рассылку итогов недели...")
+        await send_weekly_briefings(callback.bot)
+        
+    await callback.answer("Запущено!")
 
 @settings_router.callback_query(F.data.startswith("set_time_"))
 async def set_time_callback_handler(callback: types.CallbackQuery, state: FSMContext):
