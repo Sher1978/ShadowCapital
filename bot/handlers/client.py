@@ -150,6 +150,36 @@ async def my_goal_handler(message: types.Message) -> None:
         )
         await message.answer(text)
 
+@client_router.message(F.text == "📈 Мои результаты")
+async def my_results_handler(message: types.Message) -> None:
+    async with get_db_session() as session:
+        stmt = select(User).where(User.tg_id == message.from_user.id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            return
+
+        # Calculate sprint day
+        sprint_day = "Не начат"
+        if user.sprint_start_date:
+            delta = datetime.now() - user.sprint_start_date
+            sprint_day = f"День {delta.days + 1}"
+
+        text = (
+            f"📈 {hbold('Твой прогресс Shadow Sprint')}:\n\n"
+            f"🚀 {hbold('Этап:')} {sprint_day}\n"
+            f"📉 {hbold('SFI Index:')} {round(user.sfi_index or 1.0, 2)}\n"
+            f"🚩 {hbold('Красные флаги:')} {user.red_flags_count or 0} / 3\n\n"
+            "Твой SFI Index показывает текущий уровень саботажа (чем ниже число, тем меньше сопротивления). "
+            "3 красных флага ведут к исключению из программы."
+        )
+        
+        if user.last_insight:
+            text += f"\n\n💡 {hbold('Последний инсайт:')}\n{hitalic(user.last_insight)}"
+            
+        await message.answer(text)
+
 @client_router.message(F.text == "🆘 SOS")
 async def sos_handler(message: types.Message, bot: Bot):
     async with get_db_session() as session:
@@ -197,6 +227,21 @@ async def delete_my_data_handler(message: types.Message):
         "Мы ценим твою приватность. Твой прогресс (качество) сохранен, "
         "но история сообщений очищена."
     )
+
+@client_router.message(F.text == "📝 Shadow Log")
+async def shadow_log_prompt_handler(message: types.Message):
+    """
+    Prompt the user to send their daily log.
+    """
+    text = (
+        f"{hbold('📝 Твой Shadow Log')}\n\n"
+        "Это пространство для твоей честности. Расскажи, как прошел твой день в контексте Спринта:\n"
+        "• Как проявилось твое новое качество?\n"
+        "• Столкнулся ли ты с сопротивлением?\n"
+        "• Какие инсайты или 'тени' ты заметил?\n\n"
+        f"{hitalic('Пришли текстовое или голосовое сообщение прямо сейчас.')} Бот проанализирует его на предмет саботажа и даст обратную связь."
+    )
+    await message.answer(text)
 
 @client_router.message(F.text | F.voice | F.audio)
 async def log_handler(message: types.Message, bot: Bot):

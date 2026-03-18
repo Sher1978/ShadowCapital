@@ -10,7 +10,7 @@ from aiogram.utils.markdown import hbold
 from bot.keyboards.builders import get_main_keyboard
 from config import ADMIN_IDS
 
-from utils.scheduler import send_morning_impulse, send_weekly_briefings
+from utils.scheduler import send_morning_impulse, send_weekly_briefings, request_evening_logs
 from utils.gsheets_api import sync_user_to_sheets
 
 admin_router = Router()
@@ -22,23 +22,64 @@ def is_admin(user_id: int) -> bool:
 async def trigger_morning_handler(message: types.Message, bot: Bot):
     if not is_admin(message.from_user.id):
         return
-    await message.answer("Запускаю рассылку утренних импульсов вручную...")
-    await send_morning_impulse(bot)
     
-    async with get_db_session() as session:
-        session.add(AdminLog(admin_id=message.from_user.id, action="trigger_morning"))
-        await session.commit()
-        
-    await message.answer("Рассылка завершена.")
+    args = message.text.split()
+    target_user = None
+    
+    if len(args) > 1:
+        target = args[1].strip().replace("@", "")
+        async with get_db_session() as session:
+            if target.isdigit():
+                stmt = select(User).where(User.tg_id == int(target))
+            else:
+                stmt = select(User).where(User.username.ilike(target))
+            result = await session.execute(stmt)
+            target_user = result.scalar_one_or_none()
+            
+            if not target_user:
+                await message.answer(f"❌ Пользователь {target} не найден.")
+                return
+    
+    if target_user:
+        await message.answer(f"🚀 Запускаю утренний импульс для {target_user.full_name}...")
+        await send_morning_impulse(bot, target_user)
+        await message.answer("✅ Отправлено.")
+    else:
+        # Mass trigger protection
+        await message.answer("⚠️ Запускаю рассылку утренних импульсов для ВСЕХ активных клиентов...")
+        await send_morning_impulse(bot)
+        await message.answer("✅ Массовая рассылка завершена.")
 
 @admin_router.message(Command("trigger_evening"))
 async def trigger_evening_handler(message: types.Message, bot: Bot):
     if not is_admin(message.from_user.id):
         return
-    from utils.scheduler import request_evening_logs
-    await message.answer("Запрашиваю вечерние логи вручную...")
-    await request_evening_logs(bot)
-    await message.answer("Запросы отправлены.")
+        
+    args = message.text.split()
+    target_user = None
+    
+    if len(args) > 1:
+        target = args[1].strip().replace("@", "")
+        async with get_db_session() as session:
+            if target.isdigit():
+                stmt = select(User).where(User.tg_id == int(target))
+            else:
+                stmt = select(User).where(User.username.ilike(target))
+            result = await session.execute(stmt)
+            target_user = result.scalar_one_or_none()
+            
+            if not target_user:
+                await message.answer(f"❌ Пользователь {target} не найден.")
+                return
+
+    if target_user:
+        await message.answer(f"🌙 Запрашиваю вечерний лог у {target_user.full_name}...")
+        await request_evening_logs(bot, target_user)
+        await message.answer("✅ Запрос отправлен.")
+    else:
+        await message.answer("⚠️ Запрашиваю вечерние логи у ВСЕХ активных клиентов...")
+        await request_evening_logs(bot)
+        await message.answer("✅ Все запросы отправлены.")
 
 @admin_router.message(Command("trigger_weekly"))
 async def trigger_weekly_handler(message: types.Message, bot: Bot):
@@ -151,6 +192,12 @@ async def process_pending_pagination(callback: types.CallbackQuery):
     await show_pending_page(callback, page)
     await callback.answer()
 
+@admin_router.message(F.text == "⏳ Заявки")
+async def admin_pending_requests_handler(message: types.Message):
+    if not is_admin(message.from_user.id):
+        return
+    await show_pending_page(message)
+
 @admin_router.message(F.text.in_({"🚀 Спринты", "👥 Клиенты"}))
 async def active_sprints_handler(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -262,9 +309,11 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
         from aiogram.utils.keyboard import InlineKeyboardBuilder
         builder = InlineKeyboardBuilder()
         builder.button(text="✉️ Написать клиенту", callback_data=f"ai_reply_{tg_id}")
+        builder.button(text="☀️ Утренний Импульс", callback_data=f"test_morning_{tg_id}")
+        builder.button(text="🌙 Вечерний Лог", callback_data=f"test_evening_{tg_id}")
         builder.button(text="⚙️ Редактировать профиль", callback_data=f"edit_profile_{tg_id}")
         builder.button(text="⬅️ К списку", callback_data="active_page_0")
-        builder.adjust(1)
+        builder.adjust(1, 2, 1, 1)
         
         text = (
             f"📊 {hbold('Статистика Спринта:')}\n\n"
@@ -280,6 +329,32 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
         )
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
         await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("test_morning_"))
+async def admin_test_morning_handler(callback: types.CallbackQuery, bot: Bot):
+    tg_id = int(callback.data.split("_")[-1])
+    async with get_db_session() as session:
+        stmt = select(User).where(User.tg_id == tg_id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        if user:
+            await send_morning_impulse(bot, user)
+            await callback.answer("✅ Утренний импульс отправлен!")
+        else:
+            await callback.answer("❌ Ошибка: клиент не найден.")
+
+@admin_router.callback_query(F.data.startswith("test_evening_"))
+async def admin_test_evening_handler(callback: types.CallbackQuery, bot: Bot):
+    tg_id = int(callback.data.split("_")[-1])
+    async with get_db_session() as session:
+        stmt = select(User).where(User.tg_id == tg_id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        if user:
+            await request_evening_logs(bot, user)
+            await callback.answer("✅ Вечерний лог-запрос отправлен!")
+        else:
+            await callback.answer("❌ Ошибка: клиент не найден.")
 
 @admin_router.callback_query(F.data.startswith("view_pending_"))
 async def view_pending_user(callback: types.CallbackQuery):

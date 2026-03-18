@@ -4,6 +4,16 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
     builder = ReplyKeyboardBuilder()
     
+    if is_admin:
+        # Admin-specific menu: Only management tools
+        builder.button(text="👥 Клиенты")
+        builder.button(text="⏳ Заявки")
+        builder.button(text="📊 Аналитика")
+        builder.button(text="⚙️ Настройки")
+        builder.adjust(2, 2)
+        return builder.as_markup(resize_keyboard=True)
+
+    # Client-specific menu
     if not is_active:
         builder.button(text="🚀 Активировать Спринт")
         builder.adjust(1)
@@ -11,15 +21,10 @@ def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
 
     builder.button(text="🎯 Моя цель")
     builder.button(text="📝 Shadow Log")
+    builder.button(text="📈 Мои результаты")
     builder.button(text="🆘 SOS")
     builder.button(text="⚙️ Настройки")
     builder.button(text="Как это работает")
     
-    if is_admin:
-        builder.row(KeyboardButton(text="👥 Клиенты"), KeyboardButton(text="📊 Аналитика"))
-        builder.row(KeyboardButton(text="⚙️ Настройки"))
-    else:
-        builder.button(text="💼 Админ Панель")
-    
-    builder.adjust(2, 2, 2, 1)
+    builder.adjust(2, 2, 2)
     return builder.as_markup(resize_keyboard=True)

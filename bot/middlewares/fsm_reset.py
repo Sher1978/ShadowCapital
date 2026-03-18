@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 MENU_BUTTONS = {
     "🎯 Моя цель", "📝 Shadow Log", "🆘 SOS", "⚙️ Настройки", 
     "Как это работает", "👥 Клиенты", "📊 Аналитика", "⏳ Заявки", 
-    "💼 Админ Панель", "🚀 Спринты", "🚀 Активировать Спринт"
+    "💼 Админ Панель", "🚀 Спринты", "🚀 Активировать Спринт", "📈 Мои результаты"
 }
 
 class FsmResetMiddleware(BaseMiddleware):
