@@ -21,6 +21,7 @@ logger.info("📦 [STARTUP] Phase 2: Loading Project Modules...")
 import config
 from config import BOT_TOKEN
 from bot.handlers.client import client_router
+from bot.middlewares.fsm_reset import FsmResetMiddleware
 from bot.handlers.admin import admin_router
 from bot.handlers.settings import settings_router
 from database.connection import init_db
@@ -52,7 +53,7 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot (Attempt 25 - Analytics & UX Fix).
+    Main entry point for the bot (Attempt 26 - UX & FSM Reset Fix).
     All heavy imports are now handled at the module level.
     """
     # 1. Start health server
@@ -76,6 +77,7 @@ async def main() -> None:
         logger.info(f"✅ Successfully connected as @{me.username} (ID: {me.id})")
         
         dp = Dispatcher()
+        dp.message.middleware(FsmResetMiddleware())
         dp.include_router(admin_router)
         dp.include_router(settings_router)
         dp.include_router(client_router)

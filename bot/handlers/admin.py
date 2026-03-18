@@ -350,18 +350,40 @@ async def start_add_client(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     
-    await state.set_state(AdminRegistration.waiting_for_tg_id)
-    await message.answer("Введите Telegram ID нового клиента:")
+    await state.set_state(AdminRegistration.waiting_for_username)
+    await message.answer("Введите Telegram Ник (@username) нового клиента:")
 
-@admin_router.message(AdminRegistration.waiting_for_tg_id)
-async def process_tg_id(message: types.Message, state: FSMContext):
-    if not message.text.isdigit():
-        await message.answer("ID должен состоять только из цифр. Попробуйте еще раз:")
-        return
+@admin_router.message(AdminRegistration.waiting_for_username)
+async def process_username(message: types.Message, state: FSMContext):
+    username = message.text.strip().replace("@", "")
     
-    await state.update_data(tg_id=int(message.text))
-    await state.set_state(AdminRegistration.waiting_for_full_name)
-    await message.answer("Введите Имя клиента:")
+    async with get_db_session() as session:
+        stmt = select(User).where(User.username.ilike(username))
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            await message.answer(
+                f"❌ Пользователь с ником @{username} не найден в базе бота.\n\n"
+                f"Клиент должен сначала запустить бота (/start), чтобы мы могли его активировать. "
+                f"Попробуйте другой ник или попросите его нажать /start."
+            )
+            return
+        
+        await state.update_data(tg_id=user.tg_id)
+        await state.set_state(AdminRegistration.waiting_for_full_name)
+        
+        # Suggested name button
+        from aiogram.utils.keyboard import ReplyKeyboardBuilder
+        builder = ReplyKeyboardBuilder()
+        builder.button(text=user.full_name or "Без имени")
+        builder.adjust(1)
+        
+        await message.answer(
+            f"✅ Пользователь найден: {user.full_name} (ID: {user.tg_id})\n"
+            f"Введите Имя для Спринта (или выберите предложенное):",
+            reply_markup=builder.as_markup(resize_keyboard=True)
+        )
 
 @admin_router.message(AdminRegistration.waiting_for_full_name)
 async def process_full_name(message: types.Message, state: FSMContext):
