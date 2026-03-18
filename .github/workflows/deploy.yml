@@ -34,6 +34,10 @@ jobs:
           docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/shadow-bot/${{ env.SERVICE_NAME }}:${{ github.sha }} .
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/shadow-bot/${{ env.SERVICE_NAME }}:${{ github.sha }}
 
+      - name: Create Persistence Bucket (if not exists)
+        run: |
+          gcloud storage buckets create gs://shadow-bot-persistence-shershadow --project ${{ env.PROJECT_ID }} --location ${{ env.REGION }} --continue-on-error || true
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
@@ -46,4 +50,6 @@ jobs:
             --min-instances 1 \
             --max-instances 1 \
             --timeout 300 \
+            --add-volume=name=persistence-volume,type=cloud-storage,bucket=shadow-bot-persistence-shershadow \
+            --add-volume-mount=volume=persistence-volume,mount-path=/app/data \
             --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},DATABASE_URL=sqlite+aiosqlite:////app/data/shadow_guardian.db"
