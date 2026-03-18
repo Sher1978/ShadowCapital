@@ -21,10 +21,15 @@ class FsmResetMiddleware(BaseMiddleware):
         event: Message,
         data: Dict[str, Any],
     ) -> Any:
-        if isinstance(event, Message) and event.text in MENU_BUTTONS:
-            state: FSMContext = data.get("state")
-            if state:
-                current_state = await state.get_state()
-                if current_state:
-                    await state.clear()
+        if isinstance(event, Message) and event.text:
+            is_menu_button = event.text in MENU_BUTTONS
+            is_command = event.text.startswith("/")
+            
+            if is_menu_button or is_command:
+                state: FSMContext = data.get("state")
+                if state:
+                    current_state = await state.get_state()
+                    if current_state:
+                        await state.clear()
+        
         return await handler(event, data)

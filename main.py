@@ -39,7 +39,7 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot (Attempt 37 - Early Health).
+    Main entry point for the bot (Attempt 38 - Command Interruption Fix).
     Starts health server BEFORE heavy imports to prevent Cloud Run timeouts.
     """
     # 1. Start health server IMMEDIATELY (Absolute priority for Cloud Run)
