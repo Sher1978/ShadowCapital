@@ -10,12 +10,15 @@ from typing import Optional, List, Dict, Any
 # Locally, you'll need GOOGLE_APPLICATION_CREDENTIALS env var.
 if not firebase_admin._apps:
     try:
-        firebase_admin.initialize_app()
+        # Check for local credentials file, otherwise rely on default service account
+        cred = credentials.Certificate("credentials.json") if os.path.exists("credentials.json") else None
+        firebase_admin.initialize_app(cred)
         logging.info("🔥 Firebase Admin initialized successfully")
     except Exception as e:
         logging.error(f"❌ Failed to initialize Firebase Admin: {e}")
 
-db = firestore.client()
+# Используем конкретный ID базы данных, так как (default) в этом проекте недоступен
+db = firestore.client(database_id="test-db-123456789")
 
 class FirestoreDB:
     @staticmethod

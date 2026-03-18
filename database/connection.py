@@ -10,12 +10,13 @@ load_dotenv()
 # Ожидается URL в формате: postgresql+asyncpg://user:password@host:port/dbname
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Engine initialization (optimized for cloud PostgreSQL)
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False,
     pool_size=10,
     max_overflow=20,
-    pool_pre_ping=True # Защита от разрывов соединения в облаке
+    pool_pre_ping=True
 )
 
 async_session_factory = sessionmaker(

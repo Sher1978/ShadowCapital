@@ -52,4 +52,4 @@ jobs:
             --timeout 300 \
             --add-volume=name=persistence-volume,type=cloud-storage,bucket=shadow-bot-persistence-shershadow \
             --add-volume-mount=volume=persistence-volume,mount-path=/app/data \
-            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},DATABASE_URL=sqlite+aiosqlite:////app/data/shadow_guardian.db"
+            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},REDIS_URL=${{ secrets.REDIS_URL }}"
