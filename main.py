@@ -53,7 +53,7 @@ async def start_health_server():
 
 async def main() -> None:
     """
-    Main entry point for the bot (Attempt 26 - UX & FSM Reset Fix).
+    Main entry point for the bot (Attempt 27 - Analysis Refactoring).
     All heavy imports are now handled at the module level.
     """
     # 1. Start health server
