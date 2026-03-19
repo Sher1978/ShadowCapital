@@ -18,12 +18,9 @@ admin_router = Router()
 
 def is_admin(user_id: int) -> bool:
     res = user_id in ADMIN_IDS
-    logger.info(f"🛡 Admin Check for {user_id}: {res} (ADMIN_IDS: {ADMIN_IDS})")
+    logger.info(f"🛡 Admin Check for {user_id}: {res}")
     return res
 
-@admin_router.message(F.text == "DEBUG_TEST", StateFilter("*"))
-async def debug_test_handler(message: types.Message):
-    await message.answer(f"✅ Router reached. Your ID: {message.from_user.id}")
 
 @admin_router.message(Command("trigger_morning"))
 async def trigger_morning_handler(message: types.Message, bot: Bot):
@@ -151,7 +148,7 @@ async def admin_panel_handler(message: types.Message):
 @admin_router.message(F.text.contains("Заявки"), StateFilter("*"))
 async def pending_list_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f"🖱 [ENTRY] pending_list_handler hit by {user_id}. Text: '{message.text}'")
+    logger.info(f"🖱 Handling 'Requests' list for {user_id}")
     
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Requests' by user {user_id}")
@@ -160,7 +157,7 @@ async def pending_list_handler(message: types.Message, state: FSMContext):
     # Extra safety: Clear state if it wasn't cleared by middleware
     cur_state = await state.get_state()
     if cur_state:
-        logger.info(f"🔄 Safety FSM Clear in handler for user {user_id} (State: {cur_state})")
+        logger.info(f"🔄 FSM State cleared for Admin menu (User: {user_id})")
         await state.clear()
         
     await show_pending_page(message)
@@ -213,7 +210,7 @@ async def show_pending_page(message: types.Message, page: int = 0):
         await message.message.edit_text(text, reply_markup=builder.as_markup())
     else:
         await message.answer(text, reply_markup=builder.as_markup())
-    logger.info(f"✅ [SUCCESS] show_pending_page completed.")
+    logger.info(f"✅ Pending list page {page} sent.")
 
 @admin_router.callback_query(F.data.startswith("pending_page_"))
 async def process_pending_pagination(callback: types.CallbackQuery):
@@ -224,7 +221,7 @@ async def process_pending_pagination(callback: types.CallbackQuery):
 @admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"), StateFilter("*"))
 async def active_sprints_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f"🖱 [ENTRY] active_sprints_handler hit by {user_id}. Text: '{message.text}'")
+    logger.info(f"🖱 Handling 'Clients' list for {user_id}")
     
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Clients' by user {user_id}")
@@ -233,7 +230,7 @@ async def active_sprints_handler(message: types.Message, state: FSMContext):
     # Extra safety: Clear state if it wasn't cleared by middleware
     cur_state = await state.get_state()
     if cur_state:
-        logger.info(f"🔄 Safety FSM Clear in handler for user {user_id} (State: {cur_state})")
+        logger.info(f"🔄 FSM State cleared for Admin menu (User: {user_id})")
         await state.clear()
         
     await show_active_page(message)
@@ -446,10 +443,6 @@ async def start_add_client(message: types.Message, state: FSMContext):
     await state.set_state(AdminRegistration.waiting_for_username)
     await message.answer("Введите Telegram Ник (@username) нового клиента для активации:")
 
-# THIS MUST BE THE LAST HANDLER IN THE ROUTER FOR DEBUGGING
-@admin_router.message(StateFilter("*"))
-async def admin_catch_all(message: types.Message):
-    logger.info(f"📝 [CATCH-ALL] Admin router received: '{message.text}' from {message.from_user.id}")
 
 @admin_router.message(AdminRegistration.waiting_for_username)
 async def process_username(message: types.Message, state: FSMContext):
