@@ -47,10 +47,10 @@ jobs:
             --allow-unauthenticated \
             --memory 2Gi \
             --cpu 1 \
-            --min-instances 0 \
+            --min-instances 1 \
             --max-instances 1 \
             --no-cpu-throttling \
             --timeout 300 \
             --add-volume=name=persistence-volume,type=cloud-storage,bucket=shadow-bot-persistence-shershadow \
             --add-volume-mount=volume=persistence-volume,mount-path=/app/data \
-            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},REDIS_URL=${{ secrets.REDIS_URL }},SERVICE_URL=https://shadow-sprint-bot-1097154359322.us-central1.run.app"
+            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},REDIS_URL=${{ secrets.REDIS_URL }}"
