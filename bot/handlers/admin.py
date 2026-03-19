@@ -143,6 +143,7 @@ async def admin_panel_handler(message: types.Message):
 
 @admin_router.message(F.text.contains("Заявки"))
 async def pending_list_handler(message: types.Message):
+    logger.info(f"🖱 Button 'Requests' clicked by {message.from_user.id}")
     if not is_admin(message.from_user.id):
         return
     await show_pending_page(message)
@@ -209,6 +210,7 @@ async def admin_pending_requests_handler(message: types.Message):
 
 @admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"))
 async def active_sprints_handler(message: types.Message):
+    logger.info(f"🖱 Button 'Clients/Sprints' clicked by {message.from_user.id}")
     if not is_admin(message.from_user.id):
         return
     await show_active_page(message)
@@ -408,6 +410,7 @@ async def reject_user_handler(callback: types.CallbackQuery, bot: Bot):
 @admin_router.message(F.text.contains("Добавить клиента"))
 @admin_router.message(Command("add_client"))
 async def start_add_client(message: types.Message, state: FSMContext):
+    logger.info(f"🖱 Button 'Add Client' clicked by {message.from_user.id}")
     if not is_admin(message.from_user.id):
         return
     

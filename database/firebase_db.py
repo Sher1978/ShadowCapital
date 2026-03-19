@@ -21,6 +21,8 @@ if not firebase_admin._apps:
 db = firestore.client(database_id="test-db-123456789")
 
 class FirestoreDB:
+    db = db  # Expose the firestore client for direct access
+    
     @staticmethod
     async def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
         """Fetch user by Telegram ID."""

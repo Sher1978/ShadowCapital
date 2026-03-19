@@ -10,11 +10,10 @@ MENU_KEYWORDS = {
     "Добавить клиента", "Назад", "Отмена", "Start", "Меню"
 }
 
+import logging
+logger = logging.getLogger(__name__)
+
 class FsmResetMiddleware(BaseMiddleware):
-    """
-    Clears FSM state if a user clicks a main menu button.
-    This prevents the bot from being 'stuck' in an input scenario.
-    """
     async def __call__(
         self,
         handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
@@ -22,15 +21,21 @@ class FsmResetMiddleware(BaseMiddleware):
         data: Dict[str, Any],
     ) -> Any:
         if isinstance(event, Message) and event.text:
+            text = event.text
             # Robust check for menu buttons (any keyword present in text)
-            is_menu_button = any(keyword in event.text for keyword in MENU_KEYWORDS)
-            is_command = event.text.startswith("/")
+            is_menu_button = any(keyword in text for keyword in MENU_KEYWORDS)
+            is_command = text.startswith("/")
             
             if is_menu_button or is_command:
                 state: FSMContext = data.get("state")
                 if state:
                     current_state = await state.get_state()
                     if current_state:
+                        logger.info(f"🔄 FSM Reset for user {event.from_user.id}: clearing state {current_state} on button '{text}'")
                         await state.clear()
+                    else:
+                        logger.debug(f"ℹ️ User {event.from_user.id} clicked '{text}', state already None")
+                else:
+                    logger.debug(f"ℹ️ No state object for user {event.from_user.id} on '{text}'")
         
         return await handler(event, data)
