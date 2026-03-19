@@ -144,9 +144,13 @@ async def admin_panel_handler(message: types.Message):
 
 @admin_router.message(F.text.contains("Заявки"))
 async def pending_list_handler(message: types.Message):
-    logger.info(f"🖱 Button 'Requests' clicked by {message.from_user.id}")
-    if not is_admin(message.from_user.id):
+    user_id = message.from_user.id
+    logger.info(f"🖱 Button 'Requests/Pending' clicked by {user_id}. Text: '{message.text}'")
+    
+    if not is_admin(user_id):
+        logger.warning(f"🚫 Unauthorized attempt to access 'Requests' by user {user_id}")
         return
+        
     await show_pending_page(message)
 
 async def show_pending_page(message: types.Message, page: int = 0):
@@ -203,9 +207,13 @@ async def process_pending_pagination(callback: types.CallbackQuery):
 
 @admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"))
 async def active_sprints_handler(message: types.Message):
-    logger.info(f"🖱 Button 'Clients/Sprints' clicked by {message.from_user.id}")
-    if not is_admin(message.from_user.id):
+    user_id = message.from_user.id
+    logger.info(f"🖱 Button 'Clients/Sprints' clicked by {user_id}. Text: '{message.text}'")
+    
+    if not is_admin(user_id):
+        logger.warning(f"🚫 Unauthorized attempt to access 'Clients' by user {user_id}")
         return
+        
     await show_active_page(message)
 
 async def show_active_page(message: types.Message, page: int = 0):
