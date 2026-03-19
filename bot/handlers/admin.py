@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from aiogram import Router, F, types, Bot
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hbold
 
@@ -148,8 +148,6 @@ async def admin_panel_handler(message: types.Message):
     )
     await message.answer(text)
 
-from aiogram.filters import Command, StateFilter
-...
 @admin_router.message(F.text.contains("Заявки"), StateFilter("*"))
 async def pending_list_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
