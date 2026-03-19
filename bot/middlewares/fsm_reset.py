@@ -3,11 +3,11 @@ from aiogram import BaseMiddleware
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-MENU_BUTTONS = {
-    "🎯 Моя цель", "📝 Shadow Log", "🆘 SOS", "⚙️ Настройки", 
-    "Как это работает", "👥 Клиенты", "📊 Аналитика", "⏳ Заявки", 
-    "💼 Админ Панель", "🚀 Спринты", "🚀 Активировать Спринт", "📈 Мои результаты",
-    "➕ Добавить клиента"
+MENU_KEYWORDS = {
+    "Моя цель", "Shadow Log", "SOS", "Настройки", 
+    "Как это работает", "Клиенты", "Аналитика", "Заявки", 
+    "Админ Панель", "Спринты", "Активировать Спринт", "Мои результаты",
+    "Добавить клиента"
 }
 
 class FsmResetMiddleware(BaseMiddleware):
@@ -22,7 +22,8 @@ class FsmResetMiddleware(BaseMiddleware):
         data: Dict[str, Any],
     ) -> Any:
         if isinstance(event, Message) and event.text:
-            is_menu_button = event.text in MENU_BUTTONS
+            # Robust check for menu buttons (any keyword present in text)
+            is_menu_button = any(keyword in event.text for keyword in MENU_KEYWORDS)
             is_command = event.text.startswith("/")
             
             if is_menu_button or is_command:

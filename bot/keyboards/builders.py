@@ -7,7 +7,7 @@ def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
     if is_admin:
         # Admin-specific menu: Only management tools
         builder.button(text="👥 Клиенты")
-        builder.button(text="⏳ Заявки")
+        builder.button(text="⌛️ Заявки")
         builder.button(text="📊 Аналитика")
         builder.button(text="➕ Добавить клиента")
         builder.button(text="⚙️ Настройки")

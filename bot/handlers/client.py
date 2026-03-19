@@ -42,7 +42,7 @@ async def command_start_handler(message: types.Message) -> None:
         reply_markup=get_main_keyboard(is_admin, is_active=is_active)
     )
 
-@client_router.message(F.text == "🚀 Активировать Спринт")
+@client_router.message(F.text.contains("Активировать Спринт"))
 async def activate_request_handler(message: types.Message):
     user = await FirestoreDB.get_user(message.from_user.id)
     

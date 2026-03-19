@@ -141,7 +141,7 @@ async def admin_panel_handler(message: types.Message):
     )
     await message.answer(text)
 
-@admin_router.message(F.text == "⏳ Заявки")
+@admin_router.message(F.text.contains("Заявки"))
 async def pending_list_handler(message: types.Message):
     if not is_admin(message.from_user.id):
         return
@@ -201,13 +201,13 @@ async def process_pending_pagination(callback: types.CallbackQuery):
     await show_pending_page(callback, page)
     await callback.answer()
 
-@admin_router.message(F.text == "⏳ Заявки")
+@admin_router.message(F.text.contains("Заявки"))
 async def admin_pending_requests_handler(message: types.Message):
     if not is_admin(message.from_user.id):
         return
     await show_pending_page(message)
 
-@admin_router.message(F.text.in_({"🚀 Спринты", "👥 Клиенты"}))
+@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"))
 async def active_sprints_handler(message: types.Message):
     if not is_admin(message.from_user.id):
         return
@@ -257,7 +257,7 @@ async def show_active_page(message: types.Message, page: int = 0):
         else:
             await message.answer(text, reply_markup=builder.as_markup())
 
-@admin_router.message(F.text == "📊 Аналитика")
+@admin_router.message(F.text.contains("Аналитика"))
 async def admin_analytics_handler(message: types.Message):
     if not is_admin(message.from_user.id):
         return
@@ -405,7 +405,7 @@ async def reject_user_handler(callback: types.CallbackQuery, bot: Bot):
     await callback.message.answer(f"Начинаем регистрацию для ID {tg_id}.\nВведите название Теневого Качества (L1):")
     await callback.answer()
 
-@admin_router.message(F.text == "➕ Добавить клиента")
+@admin_router.message(F.text.contains("Добавить клиента"))
 @admin_router.message(Command("add_client"))
 async def start_add_client(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):

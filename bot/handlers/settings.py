@@ -15,7 +15,7 @@ class SettingsState(StatesGroup):
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
-@settings_router.message(F.text == "⚙️ Настройки")
+@settings_router.message(F.text.contains("Настройки"))
 async def settings_main_handler(message: types.Message):
     settings = await FirestoreDB.get_global_settings()
     
