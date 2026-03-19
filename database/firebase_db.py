@@ -94,3 +94,15 @@ class FirestoreDB:
         """Get all active users for scheduler."""
         docs = db.collection("users").where("status", "==", "active").stream()
         return [doc.to_dict() for doc in docs]
+    @staticmethod
+    async def delete_user_and_data(tg_id: int):
+        """Recursively delete user and all their logs."""
+        docs = db.collection("users").where("tg_id", "==", tg_id).limit(1).stream()
+        for doc in docs:
+            # Delete all logs in subcollection
+            logs = db.collection("users").document(doc.id).collection("logs").stream()
+            for log in logs:
+                db.collection("users").document(doc.id).collection("logs").document(log.id).delete()
+            # Delete user document
+            db.collection("users").document(doc.id).delete()
+            logging.info(f"🗑 Deleted user {tg_id} and all related logs.")

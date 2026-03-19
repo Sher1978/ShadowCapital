@@ -352,8 +352,9 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
     builder.button(text="☀️ Утренний Импульс", callback_data=f"test_morning_{tg_id}")
     builder.button(text="🌙 Вечерний Лог", callback_data=f"test_evening_{tg_id}")
     builder.button(text="⚙️ Редактировать профиль", callback_data=f"edit_profile_{tg_id}")
+    builder.button(text="🗑 Удалить клиента", callback_data=f"confirm_delete_{tg_id}")
     builder.button(text="⬅️ К списку", callback_data="active_page_0")
-    builder.adjust(1, 2, 1, 1)
+    builder.adjust(1, 2, 1, 1, 1)
     
     text = (
         f"📊 {hbold('Статистика Спринта:')}\n\n"
@@ -751,3 +752,47 @@ async def process_edit_scenario_confirmation(message: types.Message, state: FSMC
         await message.answer("Ошибка: клиент не найден.")
             
     await state.clear()
+
+# --- Client Deletion ---
+
+@admin_router.callback_query(F.data.startswith("confirm_delete_"))
+async def confirm_delete_client_handler(callback: types.CallbackQuery):
+    tg_id = int(callback.data.split("_")[-1])
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔥 Да, УДАЛИТЬ ВСЁ", callback_data=f"execute_delete_{tg_id}")
+    builder.button(text="⬅️ Отмена", callback_data=f"view_stats_{tg_id}")
+    builder.adjust(1)
+    
+    text = (
+        f"⚠️ {hbold('ВНИМАНИЕ! РАДИКАЛЬНОЕ ДЕЙСТВИЕ')}\n\n"
+        f"Ты собираешься полностью удалить клиента {tg_id} из системы.\n"
+        f"Будут удалены:\n"
+        f"• Профиль в Firestore\n"
+        f"• ВСЕ Shadow Logs (история отчетов)\n"
+        f"• Запись в Google Таблице\n\n"
+        f"Это действие необратимо. Подтверждаешь?"
+    )
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("execute_delete_"))
+async def execute_delete_client_handler(callback: types.CallbackQuery, bot: Bot):
+    tg_id = int(callback.data.split("_")[-1])
+    
+    # 1. Clean Google Sheets
+    from utils.gsheets_api import delete_user_from_sheets
+    await delete_user_from_sheets(tg_id)
+    
+    # 2. Clean Firestore (User + Logs)
+    await FirestoreDB.delete_user_and_data(tg_id)
+    
+    # 3. Notify Admin
+    await callback.message.edit_text(f"✅ Клиент {tg_id} и вся его история успешно стерты из системы.")
+    await callback.answer()
+    
+    # 4. Optional: Notify client? (Only if bot is not blocked)
+    try:
+        await bot.send_message(tg_id, "ℹ️ Твой доступ к Shadow Sprint был аннулирован. Все данные удалены.")
+    except: pass

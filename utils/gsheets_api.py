@@ -155,3 +155,23 @@ async def get_evening_question_from_sheets(user_day: int, scenario: str):
         return None
 
     return await asyncio.to_thread(_get_questions)
+
+async def delete_user_from_sheets(user_id: int):
+    """
+    Removes a user row from the USER_STATE sheet by User_ID.
+    """
+    def _delete():
+        client = get_gsheets_client()
+        if not client: return
+        
+        try:
+            sh = client.open_by_url(SPREADSHEET_URL)
+            worksheet = sh.worksheet("USER_STATE")
+            cell = worksheet.find(str(user_id))
+            if cell:
+                worksheet.delete_rows(cell.row)
+                logging.info(f"🗑 Deleted user {user_id} from Google Sheets.")
+        except Exception as e:
+            logging.error(f"Error deleting user from sheets: {e}")
+
+    await asyncio.to_thread(_delete)
