@@ -208,11 +208,11 @@ async def show_pending_page(message: types.Message, page: int = 0):
     if nav_buttons:
         builder.row(*nav_buttons)
             
-        text = f"⏳ {hbold('Список заявок на активацию')} (Стр. {page + 1}):"
-        if isinstance(message, types.CallbackQuery):
-            await message.message.edit_text(text, reply_markup=builder.as_markup())
-        else:
-            await message.answer(text, reply_markup=builder.as_markup())
+    text = f"⏳ {hbold('Список заявок на активацию')} (Стр. {page + 1}):"
+    if isinstance(message, types.CallbackQuery):
+        await message.message.edit_text(text, reply_markup=builder.as_markup())
+    else:
+        await message.answer(text, reply_markup=builder.as_markup())
 
 @admin_router.callback_query(F.data.startswith("pending_page_"))
 async def process_pending_pagination(callback: types.CallbackQuery):
@@ -276,11 +276,11 @@ async def show_active_page(message: types.Message, page: int = 0):
     if nav_buttons:
         builder.row(*nav_buttons)
             
-        text = f"🚀 {hbold('Активные Спринты')} (Стр. {page + 1}):"
-        if isinstance(message, types.CallbackQuery):
-            await message.message.edit_text(text, reply_markup=builder.as_markup())
-        else:
-            await message.answer(text, reply_markup=builder.as_markup())
+    text = f"🚀 {hbold('Активные Спринты')} (Стр. {page + 1}):"
+    if isinstance(message, types.CallbackQuery):
+        await message.message.edit_text(text, reply_markup=builder.as_markup())
+    else:
+        await message.answer(text, reply_markup=builder.as_markup())
 
 @admin_router.message(F.text.contains("Аналитика"), StateFilter("*"))
 async def admin_analytics_handler(message: types.Message, state: FSMContext):
