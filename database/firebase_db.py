@@ -11,8 +11,16 @@ from typing import Optional, List, Dict, Any
 if not firebase_admin._apps:
     try:
         # Check for local credentials file, otherwise rely on default service account
-        cred = credentials.Certificate("credentials.json") if os.path.exists("credentials.json") else None
-        firebase_admin.initialize_app(cred)
+        # Use credentials.json if present, otherwise rely on environment (ADC or default account)
+        cred_path = "credentials.json"
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+        else:
+            # On Cloud Run, this will use the default service account of the current project
+            firebase_admin.initialize_app(options={
+                'projectId': 'shershadow' # Explicitly set project ID
+            })
         logging.info("🔥 Firebase Admin initialized successfully")
     except Exception as e:
         logging.error(f"❌ Failed to initialize Firebase Admin: {e}")
