@@ -1,29 +1,29 @@
 import logging
 import json
-import google.generativeai as genai
-from openai import AsyncOpenAI
+import os
 from config import OPENAI_API_KEY, GEMINI_API_KEY
 
-client_openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+_AI_KNOWLEDGE = None
 
-import os
-
-def load_ai_knowledge():
+def get_ai_knowledge():
+    global _AI_KNOWLEDGE
+    if _AI_KNOWLEDGE is not None:
+        return _AI_KNOWLEDGE
+        
     docs_path = "docs"
     knowledge = ""
     if not os.path.exists(docs_path):
+        _AI_KNOWLEDGE = knowledge
         return knowledge
     
+    logging.info("📄 Reading AI Knowledge from docs...")
     for filename in sorted(os.listdir(docs_path)):
         if filename.endswith(".md"):
             with open(os.path.join(docs_path, filename), "r", encoding="utf-8") as f:
                 knowledge += f"\n--- FILE: {filename} ---\n"
                 knowledge += f.read() + "\n"
+    _AI_KNOWLEDGE = knowledge
     return knowledge
-
-AI_KNOWLEDGE = load_ai_knowledge()
 
 PROMPT_SABOTAGE_ANALYSIS_V3 = """
 SYSTEM PROMPT: SHADOW ADVISOR ENGINE (Ver. 3.0)
@@ -72,8 +72,15 @@ async def analyze_sabotage(content: str, quality_name: str, scenario_type: str =
     """
     Analyzes shadow log content for markers using Gemini 1.5 Pro (preferred for context) or Flash.
     """
+    import google.generativeai as genai
+    from openai import AsyncOpenAI
+    
+    client_openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+
     prompt = PROMPT_SABOTAGE_ANALYSIS_V3.format(
-        knowledge=AI_KNOWLEDGE,
+        knowledge=get_ai_knowledge(),
         quality_name=quality_name,
         scenario_type=scenario_type,
         content=content
@@ -143,6 +150,13 @@ async def generate_weekly_briefing(logs: list, quality_name: str) -> str:
     """
     Generates a weekly summary based on multiple logs using Gemini (primary) or OpenAI (fallback).
     """
+    import google.generativeai as genai
+    from openai import AsyncOpenAI
+    
+    client_openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+
     if not logs:
         return "Отчетов за неделю не найдено."
 
@@ -194,6 +208,13 @@ async def generate_group_weekly_summary(users_data: list) -> str:
     """
     Generates a high-level summary for the admin about the whole group.
     """
+    import google.generativeai as genai
+    from openai import AsyncOpenAI
+    
+    client_openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+
     if not users_data:
         return "Нет активных данных по группе за неделю."
 

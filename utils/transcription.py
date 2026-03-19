@@ -1,17 +1,19 @@
 import os
 import logging
-import google.generativeai as genai
-from openai import AsyncOpenAI
 from config import OPENAI_API_KEY, GEMINI_API_KEY
-
-client_openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 async def transcribe_voice(file_path: str) -> str:
     """
     Transcribes audio file using Gemini 1.5 Flash (primary) or OpenAI Whisper (fallback).
     """
+    # Lazy imports to speed up bot startup
+    import google.generativeai as genai
+    from openai import AsyncOpenAI
+    
+    client_openai = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
+
     # 1. Try Gemini 1.5 Flash (Very cheap/fast)
     if GEMINI_API_KEY:
         try:
