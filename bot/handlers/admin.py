@@ -17,7 +17,13 @@ logger = logging.getLogger(__name__)
 admin_router = Router()
 
 def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
+    res = user_id in ADMIN_IDS
+    logger.info(f"🛡 Admin Check for {user_id}: {res} (ADMIN_IDS: {ADMIN_IDS})")
+    return res
+
+@admin_router.message(F.text == "DEBUG_TEST", StateFilter("*"))
+async def debug_test_handler(message: types.Message):
+    await message.answer(f"✅ Router reached. Your ID: {message.from_user.id}")
 
 @admin_router.message(Command("trigger_morning"))
 async def trigger_morning_handler(message: types.Message, bot: Bot):
@@ -147,7 +153,7 @@ from aiogram.filters import Command, StateFilter
 @admin_router.message(F.text.contains("Заявки"), StateFilter("*"))
 async def pending_list_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f"🖱 Button 'Requests/Pending' clicked by {user_id}. Text: '{message.text}'")
+    logger.info(f"🖱 [ENTRY] pending_list_handler hit by {user_id}. Text: '{message.text}'")
     
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Requests' by user {user_id}")
@@ -167,12 +173,15 @@ async def show_pending_page(message: types.Message, page: int = 0):
     
     # Firestore doesn't support offset naturally, we'd use start_at for proper pagination.
     # For now, simple limit stream is fine for "pending" list.
+    logger.debug(f"🔍 [QUERY] Starting Firestore query for status=pending (limit {limit})")
     docs = FirestoreDB.db.collection("users").where("status", "==", "pending").limit(limit).stream()
     users = []
+    logger.debug("🔍 [QUERY] Iterating results...")
     for doc in docs:
         d = doc.to_dict()
         d['id'] = doc.id
         users.append(d)
+    logger.info(f"🔍 [QUERY] Found {len(users)} pending users.")
         
     if not users and page == 0:
         if isinstance(message, types.CallbackQuery):
@@ -216,7 +225,7 @@ async def process_pending_pagination(callback: types.CallbackQuery):
 @admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"), StateFilter("*"))
 async def active_sprints_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f"🖱 Button 'Clients/Sprints' clicked by {user_id}. Text: '{message.text}'")
+    logger.info(f"🖱 [ENTRY] active_sprints_handler hit by {user_id}. Text: '{message.text}'")
     
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Clients' by user {user_id}")
@@ -234,8 +243,10 @@ async def show_active_page(message: types.Message, page: int = 0):
     limit = 10
     offset = page * limit
     
+    logger.debug(f"🔍 [QUERY] Starting Firestore query for status=active (limit {limit})")
     docs = FirestoreDB.db.collection("users").where("status", "==", "active").limit(limit).stream()
     users = []
+    logger.debug("🔍 [QUERY] Iterating results...")
     for doc in docs:
         d = doc.to_dict()
         d['id'] = doc.id
@@ -435,6 +446,11 @@ async def start_add_client(message: types.Message, state: FSMContext):
     
     await state.set_state(AdminRegistration.waiting_for_username)
     await message.answer("Введите Telegram Ник (@username) нового клиента для активации:")
+
+# THIS MUST BE THE LAST HANDLER IN THE ROUTER FOR DEBUGGING
+@admin_router.message(StateFilter("*"))
+async def admin_catch_all(message: types.Message):
+    logger.info(f"📝 [CATCH-ALL] Admin router received: '{message.text}' from {message.from_user.id}")
 
 @admin_router.message(AdminRegistration.waiting_for_username)
 async def process_username(message: types.Message, state: FSMContext):
