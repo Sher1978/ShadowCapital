@@ -142,14 +142,22 @@ async def admin_panel_handler(message: types.Message):
     )
     await message.answer(text)
 
-@admin_router.message(F.text.contains("Заявки"))
-async def pending_list_handler(message: types.Message):
+from aiogram.filters import Command, StateFilter
+...
+@admin_router.message(F.text.contains("Заявки"), StateFilter("*"))
+async def pending_list_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     logger.info(f"🖱 Button 'Requests/Pending' clicked by {user_id}. Text: '{message.text}'")
     
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Requests' by user {user_id}")
         return
+        
+    # Extra safety: Clear state if it wasn't cleared by middleware
+    cur_state = await state.get_state()
+    if cur_state:
+        logger.info(f"🔄 Safety FSM Clear in handler for user {user_id} (State: {cur_state})")
+        await state.clear()
         
     await show_pending_page(message)
 
@@ -205,14 +213,20 @@ async def process_pending_pagination(callback: types.CallbackQuery):
     await show_pending_page(callback, page)
     await callback.answer()
 
-@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"))
-async def active_sprints_handler(message: types.Message):
+@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"), StateFilter("*"))
+async def active_sprints_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     logger.info(f"🖱 Button 'Clients/Sprints' clicked by {user_id}. Text: '{message.text}'")
     
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Clients' by user {user_id}")
         return
+        
+    # Extra safety: Clear state if it wasn't cleared by middleware
+    cur_state = await state.get_state()
+    if cur_state:
+        logger.info(f"🔄 Safety FSM Clear in handler for user {user_id} (State: {cur_state})")
+        await state.clear()
         
     await show_active_page(message)
 
@@ -259,10 +273,13 @@ async def show_active_page(message: types.Message, page: int = 0):
         else:
             await message.answer(text, reply_markup=builder.as_markup())
 
-@admin_router.message(F.text.contains("Аналитика"))
-async def admin_analytics_handler(message: types.Message):
+@admin_router.message(F.text.contains("Аналитика"), StateFilter("*"))
+async def admin_analytics_handler(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
+    
+    # Safety clear
+    await state.clear()
     
     # Get counts using Firestore aggregation
     total_users_query = FirestoreDB.db.collection("users").count()
@@ -407,12 +424,14 @@ async def approve_user_start_registration(callback: types.CallbackQuery, state: 
     await callback.message.answer(f"Начинаем регистрацию для ID {tg_id}.\nВведите название Теневого Качества (L1):")
     await callback.answer()
 
-@admin_router.message(F.text.contains("Добавить клиента"))
-@admin_router.message(Command("add_client"))
+@admin_router.message(F.text.contains("Добавить клиента"), StateFilter("*"))
+@admin_router.message(Command("add_client"), StateFilter("*"))
 async def start_add_client(message: types.Message, state: FSMContext):
     logger.info(f"🖱 Button 'Add Client' clicked by {message.from_user.id}")
     if not is_admin(message.from_user.id):
         return
+    
+    await state.clear() # Clear any previous state before starting new registration
     
     await state.set_state(AdminRegistration.waiting_for_username)
     await message.answer("Введите Telegram Ник (@username) нового клиента для активации:")

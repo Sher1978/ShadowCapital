@@ -23,7 +23,9 @@ class FsmResetMiddleware(BaseMiddleware):
         if isinstance(event, Message) and event.text:
             text = event.text
             # Robust check for menu buttons (any keyword present in text)
-            is_menu_button = any(keyword in text for keyword in MENU_KEYWORDS)
+            # Use strip() and check if any keyword is a substring of the message text
+            # We also strip emojis from the keywords if needed, but here we just check substring
+            is_menu_button = any(keyword.strip() in text for keyword in MENU_KEYWORDS)
             is_command = text.startswith("/")
             
             if is_menu_button or is_command:
@@ -37,5 +39,8 @@ class FsmResetMiddleware(BaseMiddleware):
                         logger.debug(f"ℹ️ User {event.from_user.id} clicked '{text}', state already None")
                 else:
                     logger.debug(f"ℹ️ No state object for user {event.from_user.id} on '{text}'")
+            else:
+                # Debug log to see why it didn't match
+                logger.debug(f"ℹ️ Message '{text}' from {event.from_user.id} is not a menu button")
         
         return await handler(event, data)
