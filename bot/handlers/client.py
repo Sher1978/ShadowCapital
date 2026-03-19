@@ -58,23 +58,23 @@ async def activate_request_handler(message: types.Message):
         await message.answer("⏳ Твоя заявка на рассмотрении. Ожидай уведомления от куратора.")
         return
             
-        text = (
-            "Перед активацией твоего профиля в системе Sher | Shadow Capital, "
-            "тебе необходимо принять Правила и Политику программы Shadow Sprint.\n\n"
-            f"{hbold('Краткие положения:')}\n"
-            "🌑 Confidentiality: Двусторонний NDA на всю информацию и методики.\n"
-            "📊 Discipline: Обязательный ежедневный отчет по формуле С.И.К. до 20:00.\n"
-            "📉 SFI Control: 3 красных флага за саботаж = исключение без возврата средств.\n\n"
-            "Нажимая кнопку ниже, ты подтверждаешь свою готовность к работе по этим стандартам."
-        )
-        
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        builder = InlineKeyboardBuilder()
-        builder.button(text="📜 Читать полные правила", url="https://telegra.ph/Shadow-Sprint-Rules-03-17") # Placeholder URL or just text
-        builder.button(text="✅ Ознакомлен и принимаю правила", callback_data="accept_rules")
-        builder.adjust(1)
-        
-        await message.answer(text, reply_markup=builder.as_markup())
+    text = (
+        "Перед активацией твоего профиля в системе Sher | Shadow Capital, "
+        "тебе необходимо принять Правила и Политику программы Shadow Sprint.\n\n"
+        f"{hbold('Краткие положения:')}\n"
+        "🌑 Confidentiality: Двусторонний NDA на всю информацию и методики.\n"
+        "📊 Discipline: Обязательный ежедневный отчет по формуле С.И.К. до 20:00.\n"
+        "📉 SFI Control: 3 красных флага за саботаж = исключение без возврата средств.\n\n"
+        "Нажимая кнопку ниже, ты подтверждаешь свою готовность к работе по этим стандартам."
+    )
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📜 Читать полные правила", url="https://telegra.ph/Shadow-Sprint-Rules-03-17") # Placeholder URL or just text
+    builder.button(text="✅ Ознакомлен и принимаю правила", callback_data="accept_rules")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup())
 
 @client_router.callback_query(F.data == "accept_rules")
 async def accept_rules_handler(callback: types.CallbackQuery, bot: Bot):
