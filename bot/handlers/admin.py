@@ -213,6 +213,7 @@ async def show_pending_page(message: types.Message, page: int = 0):
         await message.message.edit_text(text, reply_markup=builder.as_markup())
     else:
         await message.answer(text, reply_markup=builder.as_markup())
+    logger.info(f"✅ [SUCCESS] show_pending_page completed.")
 
 @admin_router.callback_query(F.data.startswith("pending_page_"))
 async def process_pending_pagination(callback: types.CallbackQuery):
