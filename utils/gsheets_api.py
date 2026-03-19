@@ -4,7 +4,7 @@ import logging
 import os
 import asyncio
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from config import GOOGLE_SHEET_URL as SPREADSHEET_URL
 
 # Scope for Google Sheets and Drive
@@ -66,7 +66,7 @@ async def sync_user_to_sheets(user_data: dict):
                 str(flags),
                 friction,
                 user_data.get('last_insight', ''),
-                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             ]
             
             if cell:

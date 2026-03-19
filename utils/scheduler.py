@@ -3,7 +3,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from aiogram import Bot
 from database.firebase_db import FirestoreDB
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from config import ADMIN_IDS
 from utils.analysis import generate_weekly_briefing, generate_group_weekly_summary
@@ -35,7 +35,7 @@ async def send_admin_morning_pulse(bot: Bot):
 async def send_admin_deadline_control(bot: Bot):
     """20:30 UTC: List users who missed reports."""
     users = await FirestoreDB.get_active_users()
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     
     missed = []
     for u in users:
@@ -90,7 +90,7 @@ async def send_admin_evening_concentrate(bot: Bot):
 
 async def send_morning_impulse(bot: Bot, user: dict = None):
     """Sends morning impulse to a specific user or all active users."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     
     if user:
         users = [user]
@@ -129,7 +129,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None):
 
 async def request_evening_logs(bot: Bot, user: dict = None):
     """Sends evening log request to a specific user or all active users."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     
     if user:
         users = [user]
@@ -200,7 +200,7 @@ async def send_weekly_briefings(bot: Bot):
 
 async def dynamic_scheduler_job(bot: Bot):
     """Ticks every minute to check if any user needs a message based on their custom settings."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     current_time_str = now.strftime("%H:%M")
     today = now.date()
     

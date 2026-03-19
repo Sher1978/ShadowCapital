@@ -5,7 +5,7 @@ from database.models import User, ShadowLog, GlobalSettings
 from database.firebase_db import FirestoreDB
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-from datetime import datetime
+from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ async def migrate():
                 "last_evening_sent": u.last_evening_sent,
                 "target_quality_l1": u.shadow_map.quality_name if u.shadow_map else None,
                 "target_quality_l2": u.shadow_map.quality_description if u.shadow_map else None,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
             await FirestoreDB.create_user(user_data)
             

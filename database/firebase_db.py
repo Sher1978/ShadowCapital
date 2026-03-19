@@ -2,7 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 # Initialize Firebase Admin SDK
@@ -34,7 +34,7 @@ class FirestoreDB:
     @staticmethod
     async def create_user(user_data: Dict[str, Any]) -> str:
         """Create a new user document."""
-        user_data['created_at'] = datetime.utcnow()
+        user_data['created_at'] = datetime.now(timezone.utc)
         _, doc_ref = db.collection("users").add(user_data)
         return doc_ref.id
 
@@ -46,7 +46,7 @@ class FirestoreDB:
     @staticmethod
     async def add_log(user_doc_id: str, log_data: Dict[str, Any]):
         """Add a shadow log for a user."""
-        log_data['created_at'] = datetime.utcnow()
+        log_data['created_at'] = datetime.now(timezone.utc)
         db.collection("users").document(user_doc_id).collection("logs").add(log_data)
 
     @staticmethod

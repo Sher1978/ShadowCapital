@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from aiogram.filters import Command, StateFilter
 from aiogram import Router, types, F, Bot
 from aiogram.fsm.context import FSMContext
@@ -305,7 +305,7 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
     sprint_day = "N/A"
     start_date = user.get('sprint_start_date')
     if start_date:
-        delta = datetime.utcnow() - start_date
+        delta = datetime.now(timezone.utc) - start_date
         sprint_day = delta.days + 1
 
         # Friction Level Logic (SFI: 0.1 goal, 1.0 critical)
@@ -539,7 +539,7 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
         "target_quality_l1": data['quality_name'],
         "status": "active",
         "sfi_index": 1.0,
-        "sprint_start_date": datetime.utcnow()
+        "sprint_start_date": datetime.now(timezone.utc)
     }
     
     if not user:

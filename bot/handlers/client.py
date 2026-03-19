@@ -10,7 +10,7 @@ from utils.analysis import analyze_sabotage
 from utils.alerts import send_red_alert
 from utils.gsheets_api import sync_user_to_sheets
 from config import ADMIN_IDS
-from datetime import datetime
+from datetime import datetime, timezone
 
 client_router = Router()
 
@@ -86,7 +86,7 @@ async def accept_rules_handler(callback: types.CallbackQuery, bot: Bot):
 
     update_data = {
         "rules_accepted": True,
-        "rules_accepted_at": datetime.now(),
+        "rules_accepted_at": datetime.now(timezone.utc),
         "status": "pending"
     }
     await FirestoreDB.update_user(user['id'], update_data)
