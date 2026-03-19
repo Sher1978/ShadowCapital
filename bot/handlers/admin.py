@@ -1,16 +1,19 @@
+import logging
 from datetime import datetime, timezone
-from aiogram.filters import Command, StateFilter
-from aiogram import Router, types, F, Bot
-from aiogram.fsm.context import FSMContext
-from bot.states import AdminRegistration, AdminStates
-from database.firebase_db import FirestoreDB
-from aiogram.utils.markdown import hbold
-from bot.keyboards.builders import get_main_keyboard
-from config import ADMIN_IDS
 
+from aiogram import Router, F, types, Bot
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.utils.markdown import hbold
+
+from config import ADMIN_IDS
+from database.firebase_db import FirestoreDB
+from bot.states import AdminStates, AdminRegistration
+from bot.keyboards.builders import get_main_keyboard
 from utils.scheduler import send_morning_impulse, send_weekly_briefings, request_evening_logs
 from utils.gsheets_api import sync_user_to_sheets
 
+logger = logging.getLogger(__name__)
 admin_router = Router()
 
 def is_admin(user_id: int) -> bool:
@@ -24,8 +27,6 @@ async def trigger_morning_handler(message: types.Message, bot: Bot):
     args = message.text.split()
     target_user = None
     
-    if len(args) > 1:
-        target = args[1].strip().replace("@", "")
     if len(args) > 1:
         target = args[1].strip().replace("@", "")
         if target.isdigit():
@@ -152,8 +153,6 @@ async def show_pending_page(message: types.Message, page: int = 0):
     limit = 10
     offset = page * limit
     
-    limit = 10
-    
     # Firestore doesn't support offset naturally, we'd use start_at for proper pagination.
     # For now, simple limit stream is fine for "pending" list.
     docs = FirestoreDB.db.collection("users").where("status", "==", "pending").limit(limit).stream()
@@ -202,12 +201,6 @@ async def process_pending_pagination(callback: types.CallbackQuery):
     await show_pending_page(callback, page)
     await callback.answer()
 
-@admin_router.message(F.text.contains("Заявки"))
-async def admin_pending_requests_handler(message: types.Message):
-    if not is_admin(message.from_user.id):
-        return
-    await show_pending_page(message)
-
 @admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"))
 async def active_sprints_handler(message: types.Message):
     logger.info(f"🖱 Button 'Clients/Sprints' clicked by {message.from_user.id}")
@@ -219,7 +212,6 @@ async def show_active_page(message: types.Message, page: int = 0):
     limit = 10
     offset = page * limit
     
-    limit = 10
     docs = FirestoreDB.db.collection("users").where("status", "==", "active").limit(limit).stream()
     users = []
     for doc in docs:
@@ -307,61 +299,49 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
     sprint_day = "N/A"
     start_date = user.get('sprint_start_date')
     if start_date:
+        if isinstance(start_date, str):
+             start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
         delta = datetime.now(timezone.utc) - start_date
         sprint_day = delta.days + 1
 
-        # Friction Level Logic (SFI: 0.1 goal, 1.0 critical)
-        friction = "🟢 GREEN"
-        if (user.sfi_index or 1.0) > 0.7 or (user.red_flags_count or 0) >= 3:
-            friction = "🔴 RED"
-        elif (user.sfi_index or 1.0) > 0.4 or (user.red_flags_count or 0) >= 2:
-            friction = "🟡 YELLOW"
-
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        builder = InlineKeyboardBuilder()
-        builder.button(text="✉️ Написать клиенту", callback_data=f"ai_reply_{tg_id}")
-        builder.button(text="☀️ Утренний Импульс", callback_data=f"test_morning_{tg_id}")
-        builder.button(text="🌙 Вечерний Лог", callback_data=f"test_evening_{tg_id}")
-        builder.button(text="⚙️ Редактировать профиль", callback_data=f"edit_profile_{tg_id}")
-        builder.button(text="⬅️ К списку", callback_data="active_page_0")
-        builder.adjust(1, 2, 1, 1)
-        
-        text = (
-            f"📊 {hbold('Статистика Спринта:')}\n\n"
-            f"👤 Имя: {user.get('full_name')}\n"
-            f"📅 День Спринта: {sprint_day}/30\n"
-            f"🎯 Качество (L1): {user.get('target_quality_l1')}\n"
-            f"👁 Сценарий: {user.get('scenario_type')}\n\n"
-            f"📈 Shadow Friction Index (SFI): {round(user.get('sfi_index', 1.0), 2)}\n"
-            f"🚩 Флаги саботажа: {user.get('red_flags_count', 0)}\n"
-            f"🌡 Уровень трения: {friction}\n\n"
-            f"💡 {hbold('Последний инсайт:')}\n"
-            f"{user.get('last_insight') or 'Данных пока нет.'}"
-        )
-        await callback.message.edit_text(text, reply_markup=builder.as_markup())
-        await callback.answer()
-
-    tg_id = int(callback.data.split("_")[-1])
-    user = await FirestoreDB.get_user(tg_id)
-    if user:
-        await send_morning_impulse(bot, user)
-        await callback.answer("✅ Утренний импульс отправлен!")
-    else:
-        await callback.answer("❌ Ошибка: клиент не найден.")
-
-@admin_router.callback_query(F.data.startswith("test_evening_"))
-async def admin_test_evening_handler(callback: types.CallbackQuery, bot: Bot):
-    tg_id = int(callback.data.split("_")[-1])
-    user = await FirestoreDB.get_user(tg_id)
-    if user:
-        await request_evening_logs(bot, user)
-        await callback.answer("✅ Вечерний лог-запрос отправлен!")
-    else:
-        await callback.answer("❌ Ошибка: клиент не найден.")
-
-    tg_id = int(callback.data.split("_")[-1])
-    user = await FirestoreDB.get_user(tg_id)
+    # Friction Level Logic (SFI: 0.1 goal, 1.0 critical)
+    friction = "🟢 GREEN"
+    sfi = user.get('sfi_index', 1.0)
+    flags = user.get('red_flags_count', 0)
     
+    if sfi > 0.7 or flags >= 3:
+        friction = "🔴 RED"
+    elif sfi > 0.4 or flags >= 2:
+        friction = "🟡 YELLOW"
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✉️ Написать клиенту", callback_data=f"ai_reply_{tg_id}")
+    builder.button(text="☀️ Утренний Импульс", callback_data=f"test_morning_{tg_id}")
+    builder.button(text="🌙 Вечерний Лог", callback_data=f"test_evening_{tg_id}")
+    builder.button(text="⚙️ Редактировать профиль", callback_data=f"edit_profile_{tg_id}")
+    builder.button(text="⬅️ К списку", callback_data="active_page_0")
+    builder.adjust(1, 2, 1, 1)
+    
+    text = (
+        f"📊 {hbold('Статистика Спринта:')}\n\n"
+        f"👤 Имя: {user.get('full_name')}\n"
+        f"📅 День Спринта: {sprint_day}/30\n"
+        f"🎯 Качество (L1): {user.get('target_quality_l1')}\n"
+        f"👁 Сценарий: {user.get('scenario_type')}\n\n"
+        f"📈 Shadow Friction Index (SFI): {round(sfi, 2)}\n"
+        f"🚩 Флаги саботажа: {flags}\n"
+        f"🌡 Уровень трения: {friction}\n\n"
+        f"💡 {hbold('Последний инсайт:')}\n"
+        f"{user.get('last_insight') or 'Данных пока нет.'}"
+    )
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("view_pending_"))
+async def view_pending_user_handler(callback: types.CallbackQuery):
+    tg_id = int(callback.data.split("_")[-1])
+    user = await FirestoreDB.get_user(tg_id)
     if not user:
         await callback.answer("Пользователь не найден.")
         return
@@ -383,6 +363,16 @@ async def admin_test_evening_handler(callback: types.CallbackQuery, bot: Bot):
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
     await callback.answer()
 
+@admin_router.callback_query(F.data.startswith("test_morning_"))
+async def admin_test_morning_handler(callback: types.CallbackQuery, bot: Bot):
+    tg_id = int(callback.data.split("_")[-1])
+    user = await FirestoreDB.get_user(tg_id)
+    if user:
+        await send_morning_impulse(bot, user)
+        await callback.answer("✅ Утренний импульс отправлен!")
+    else:
+        await callback.answer("❌ Ошибка: клиент не найден.")
+
 @admin_router.callback_query(F.data.startswith("reject_user_"))
 async def reject_user_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
@@ -396,6 +386,8 @@ async def reject_user_handler(callback: types.CallbackQuery, bot: Bot):
     await callback.message.edit_text("❌ Заявка отклонена.")
     await callback.answer()
 
+@admin_router.callback_query(F.data.startswith("approve_user_"))
+async def approve_user_start_registration(callback: types.CallbackQuery, state: FSMContext):
     tg_id = int(callback.data.split("_")[-1])
     await state.update_data(tg_id=tg_id)
     
@@ -417,6 +409,8 @@ async def start_add_client(message: types.Message, state: FSMContext):
     await state.set_state(AdminRegistration.waiting_for_username)
     await message.answer("Введите Telegram Ник (@username) нового клиента для активации:")
 
+@admin_router.message(AdminRegistration.waiting_for_username)
+async def process_username(message: types.Message, state: FSMContext):
     username = message.text.strip().replace("@", "")
     
     # Query by username in Firestore
@@ -562,7 +556,7 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
     await state.clear()
     await message.answer(
         f"✅ Клиент {data['tg_id']} успешно активирован!\nСценарий: {hbold(scenario_type)}",
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(is_admin=True)
     )
     
     # Notify client
