@@ -49,6 +49,7 @@ jobs:
             --cpu 1 \
             --min-instances 1 \
             --max-instances 1 \
+            --no-cpu-throttling \
             --timeout 300 \
             --add-volume=name=persistence-volume,type=cloud-storage,bucket=shadow-bot-persistence-shershadow \
             --add-volume-mount=volume=persistence-volume,mount-path=/app/data \
