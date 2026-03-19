@@ -90,7 +90,7 @@ async def main() -> None:
         logger.info(f"✅ Successfully connected as @{me.username} (ID: {me.id})")
         
         dp = Dispatcher(storage=storage)
-        dp.message.middleware(FsmResetMiddleware())
+        dp.message.outer_middleware(FsmResetMiddleware())
         dp.include_router(admin_router)
         dp.include_router(settings_router)
         dp.include_router(client_router)
