@@ -1007,14 +1007,27 @@ async def handle_immediate_action(callback: types.CallbackQuery, bot: Bot):
     action_type = parts[2] # "morning" or "evening"
     client_id = parts[3]
     
-    if action_type == "morning":
-        await send_morning_impulse(bot, client_id)
-        await callback.message.answer(f"✅ Утренний импульс отправлен клиенту {client_id}.")
-    elif action_type == "evening":
-        await request_evening_logs(bot, client_id)
-        await callback.message.answer(f"✅ Запрос вечернего лога отправлен клиенту {client_id}.")
+    # Fetch user dict (scheduler functions expect dict, not ID string)
+    user = await FirestoreDB.get_user(client_id)
+    if not user:
+        await callback.message.answer("❌ Ошибка: клиент не найден в базе данных.")
+        await callback.answer()
+        return
+
+    try:
+        if action_type == "morning":
+            await send_morning_impulse(bot, user)
+            await callback.message.answer(f"✅ Утренний импульс отправлен клиенту {user.get('full_name')}.")
+        elif action_type == "evening":
+            await request_evening_logs(bot, user)
+            await callback.message.answer(f"✅ Запрос вечернего лога отправлен клиенту {user.get('full_name')}.")
+    except Exception as e:
+        import logging
+        logging.error(f"Error in handle_immediate_action: {e}")
+        await callback.message.answer(f"❌ Ошибка при отправке: {e}")
     
     await callback.answer()
+    # Remove buttons after action
     await callback.message.edit_reply_markup(reply_markup=None)
 
 # --- Client Deletion ---
