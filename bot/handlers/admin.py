@@ -848,7 +848,7 @@ async def edit_scenario_start(callback: types.CallbackQuery, state: FSMContext):
         f"4. {hbold('Architect')}\n\n"
         f"Введите цифру (1-4):"
     )
-    await message.answer(text, reply_markup=get_navigation_keyboard())
+    await callback.message.answer(text, reply_markup=get_navigation_keyboard())
     await callback.answer()
 
 @admin_router.message(AdminStates.waiting_for_edit_scenario)

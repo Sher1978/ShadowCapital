@@ -18,7 +18,7 @@ def run_diag():
             return
 
     try:
-        db = firestore.client(database_id="test-db-123456789")
+        db = firestore.client(database_id="(default)")
         print(f"✅ Client created for database: {db._database}")
         
         # Test 1: Count users

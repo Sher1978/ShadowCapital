@@ -6,27 +6,23 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 # Initialize Firebase Admin SDK
-# In Cloud Run, it will automatically use the default service account.
-# Locally, you'll need GOOGLE_APPLICATION_CREDENTIALS env var.
 if not firebase_admin._apps:
     try:
-        # Check for local credentials file, otherwise rely on default service account
-        # Use credentials.json if present, otherwise rely on environment (ADC or default account)
         cred_path = "credentials.json"
         if os.path.exists(cred_path):
             cred = credentials.Certificate(cred_path)
             firebase_admin.initialize_app(cred)
+            logging.info("✅ Firebase Admin initialized with credentials.json")
         else:
-            # On Cloud Run, this will use the default service account of the current project
-            firebase_admin.initialize_app(options={
-                'projectId': 'shershadow' # Explicitly set project ID
-            })
-        logging.info("🔥 Firebase Admin initialized successfully")
+            firebase_admin.initialize_app()
+            logging.info("✅ Firebase Admin initialized with Application Default Credentials")
     except Exception as e:
         logging.error(f"❌ Failed to initialize Firebase Admin: {e}")
 
-# Используем конкретный ID базы данных, так как (default) в этом проекте недоступен
-db = firestore.client(database_id="test-db-123456789")
+# Use (default) database ID by default, can be overridden via env
+database_id = os.getenv("FIREBASE_DATABASE_ID", "(default)")
+db = firestore.client(database_id=database_id)
+logging.info(f"🔥 Firestore client created for database: {database_id}")
 
 class FirestoreDB:
     db = db  # Expose the firestore client for direct access
