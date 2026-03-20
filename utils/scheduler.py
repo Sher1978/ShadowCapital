@@ -265,7 +265,9 @@ async def reload_admin_jobs(bot: Bot):
         try: _scheduler.remove_job(job_id)
         except: pass
         
+    logging.info("⏳ Fetching global settings from Firestore...")
     settings = await FirestoreDB.get_global_settings()
+    logging.info(f"✅ Global settings fetched: {settings.keys()}")
     
     def p(t):
         try:

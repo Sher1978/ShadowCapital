@@ -6,6 +6,7 @@
 *.sqlite3
 
 # Credentials
+google_credentials.json.wrong
 credentials.json
 *.pem
 *.json
