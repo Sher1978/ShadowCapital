@@ -131,8 +131,12 @@ async def send_morning_impulse(bot: Bot, user: dict = None):
             f"Помни про обход Хранителя — действуй мягко."
         )
         
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
+        
         try:
-            await bot.send_message(u.get('tg_id'), text)
+            await bot.send_message(u.get('tg_id'), text, reply_markup=builder.as_markup())
             await FirestoreDB.update_user(u['id'], {"last_morning_sent": now})
             logging.info(f"Morning impulse sent to {u.get('tg_id')}")
         except Exception as e:
@@ -218,15 +222,29 @@ async def dynamic_scheduler_job(bot: Bot):
     users = await FirestoreDB.get_active_users()
     
     for user in users:
+        # Timezone-aware check
+        user_tz_str = user.get('timezone', 'UTC+3')
+        try:
+            # Parse "UTC+X" or "UTC-X"
+            offset = int(user_tz_str.replace("UTC", "").replace("+", ""))
+        except:
+            offset = 3
+            
+        from datetime import timedelta
+        user_local_time = now + timedelta(hours=offset)
+        user_time_str = user_local_time.strftime("%H:%M")
+
         # Check morning
-        if user.get("morning_time") == current_time_str:
+        user_morning_time = user.get("morning_time") or "09:00"
+        if user_morning_time == user_time_str:
             last_sent_dt = user.get("last_morning_sent")
             last_sent = last_sent_dt.date() if last_sent_dt else None
             if last_sent != today:
                 await send_morning_impulse(bot, user)
         
         # Check evening
-        if user.get("evening_time") == current_time_str:
+        user_evening_time = user.get("evening_time") or "21:30"
+        if user_evening_time == user_time_str:
             last_sent_dt = user.get("last_evening_sent")
             last_sent = last_sent_dt.date() if last_sent_dt else None
             if last_sent != today:

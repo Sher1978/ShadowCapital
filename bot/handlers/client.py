@@ -114,6 +114,26 @@ async def accept_rules_handler(callback: types.CallbackQuery, bot: Bot):
             )
         except: pass
 
+@client_router.callback_query(F.data == "morning_confirm")
+async def morning_confirm_handler(callback: types.CallbackQuery):
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user:
+        await callback.answer("Пользователь не найден.")
+        return
+        
+    update_data = {
+        "last_confirmation_at": datetime.now(timezone.utc)
+    }
+    await FirestoreDB.update_user(user['id'], update_data)
+    
+    # Extract original text and append confirmation
+    original_text = callback.message.text or callback.message.caption or ""
+    
+    await callback.message.edit_text(
+        f"{original_text}\n\n✅ {hbold('Принято! Твоя готовность зафиксирована. Действуй!')}"
+    )
+    await callback.answer("Готовность подтверждена!")
+
 @client_router.message(F.text == "Как это работает")
 async def how_it_works_handler(message: types.Message) -> None:
     text = (

@@ -5,6 +5,7 @@ class AdminRegistration(StatesGroup):
     waiting_for_full_name = State()
     waiting_for_quality_name = State()
     waiting_for_scenario_type = State()
+    waiting_for_timezone = State()
     waiting_for_confirmation = State()
 
 class AdminStates(StatesGroup):

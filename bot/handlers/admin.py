@@ -349,12 +349,13 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     builder.button(text="✉️ Написать клиенту", callback_data=f"ai_reply_{tg_id}")
+    builder.button(text="📜 Архив логов", callback_data=f"view_logs_{tg_id}")
     builder.button(text="☀️ Утренний Импульс", callback_data=f"test_morning_{tg_id}")
     builder.button(text="🌙 Вечерний Лог", callback_data=f"test_evening_{tg_id}")
     builder.button(text="⚙️ Редактировать профиль", callback_data=f"edit_profile_{tg_id}")
     builder.button(text="🗑 Удалить клиента", callback_data=f"confirm_delete_{tg_id}")
     builder.button(text="⬅️ К списку", callback_data="active_page_0")
-    builder.adjust(1, 2, 1, 1, 1)
+    builder.adjust(1, 1, 2, 1, 1, 1)
     
     text = (
         f"📊 {hbold('Статистика Спринта:')}\n\n"
@@ -365,9 +366,37 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
         f"📈 Shadow Friction Index (SFI): {round(sfi, 2)}\n"
         f"🚩 Флаги саботажа: {flags}\n"
         f"🌡 Уровень трения: {friction}\n\n"
+        f"🌍 Часовой пояс: {user.get('timezone', 'UTC+0')}\n"
         f"💡 {hbold('Последний инсайт:')}\n"
         f"{user.get('last_insight') or 'Данных пока нет.'}"
     )
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("view_logs_"))
+async def view_archive_handler(callback: types.CallbackQuery):
+    tg_id = int(callback.data.split("_")[-1])
+    user = await FirestoreDB.get_user(tg_id)
+    if not user:
+        await callback.answer("Клиент не найден.")
+        return
+        
+    logs = await FirestoreDB.get_logs(user['id'], limit=5)
+    
+    text = f"📜 {hbold('Архив логов клиента')} {user.get('full_name')}:\n\n"
+    if not logs:
+        text += "Логов пока нет."
+    else:
+        for idx, log in enumerate(logs):
+            date_str = log.get('created_at').strftime("%d.%m %H:%M") if log.get('created_at') else "N/A"
+            sabotage = "🚩" if log.get('is_sabotage') else "✅"
+            content = log.get('content', '')[:100] + "..." if len(log.get('content', '')) > 100 else log.get('content', '')
+            text += f"{idx+1}. {sabotage} [{date_str}]: {content}\n\n"
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Назад к статистике", callback_data=f"view_stats_{tg_id}")
+    
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
     await callback.answer()
 
@@ -526,6 +555,32 @@ async def process_scenario_type(message: types.Message, state: FSMContext, bot: 
     
     desc = descriptions.get(scenario_type, "Описание отсутствует.")
     
+    await state.set_state(AdminRegistration.waiting_for_timezone)
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    # Common offsets for the target audience (CIS/Global)
+    offsets = ["UTC-3", "UTC+0", "UTC+2", "UTC+3", "UTC+4", "UTC+5", "UTC+6", "UTC+7", "UTC+8", "UTC+9"]
+    for off in offsets:
+        builder.button(text=off, callback_data=f"set_tz_{off}")
+    builder.adjust(3)
+    
+    await message.answer(
+        f"Выбран сценарий: {hbold(scenario_type)}\n\n"
+        f"💡 {hbold('Юз-кейс:')}\n{desc}\n\n"
+        f"Теперь выберите часовой пояс клиента:",
+        reply_markup=builder.as_markup()
+    )
+
+@admin_router.callback_query(AdminRegistration.waiting_for_timezone, F.data.startswith("set_tz_"))
+async def process_timezone(callback: types.CallbackQuery, state: FSMContext):
+    tz = callback.data.replace("set_tz_", "")
+    await state.update_data(timezone=tz)
+    
+    data = await state.get_data()
+    scenario_type = data['scenario_type']
+    quality_name = data['quality_name']
+    
     from aiogram.utils.keyboard import ReplyKeyboardBuilder
     builder = ReplyKeyboardBuilder()
     builder.button(text="✅ Принять")
@@ -533,12 +588,16 @@ async def process_scenario_type(message: types.Message, state: FSMContext, bot: 
     builder.adjust(2)
     
     text = (
-        f"Выбран сценарий: {hbold(scenario_type)}\n\n"
-        f"💡 {hbold('Юз-кейс:')}\n{desc}\n\n"
+        f"📝 {hbold('Проверка данных:')}\n\n"
+        f"👤 Клиент: {data.get('full_name')} (ID: {data.get('tg_id')})\n"
+        f"🎯 Качество: {quality_name}\n"
+        f"👁 Сценарий: {scenario_type}\n"
+        f"🌍 Часовой пояс: {tz}\n\n"
         f"Активируем клиента?"
     )
     await state.set_state(AdminRegistration.waiting_for_confirmation)
-    await message.answer(text, reply_markup=builder.as_markup(resize_keyboard=True))
+    await callback.message.answer(text, reply_markup=builder.as_markup(resize_keyboard=True))
+    await callback.answer()
 
 @admin_router.message(AdminRegistration.waiting_for_confirmation)
 async def process_activation_confirmation(message: types.Message, state: FSMContext, bot: Bot):
@@ -572,6 +631,7 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
         "target_quality_l1": data['quality_name'],
         "status": "active",
         "sfi_index": 1.0,
+        "timezone": data.get('timezone', 'UTC+3'),
         "sprint_start_date": datetime.now(timezone.utc)
     }
     
@@ -619,11 +679,42 @@ async def edit_profile_start(callback: types.CallbackQuery, state: FSMContext):
     builder = InlineKeyboardBuilder()
     builder.button(text="🎯 Качество (L1)", callback_data="edit_field_quality")
     builder.button(text="👁 Сценарий", callback_data="edit_field_scenario")
+    builder.button(text="🌍 Часовой пояс", callback_data="edit_field_timezone")
     builder.button(text="⬅️ Отмена", callback_data=f"view_stats_{client_id}")
     builder.adjust(1)
     
     await callback.message.edit_text("Что именно нужно изменить?", reply_markup=builder.as_markup())
     await callback.answer()
+
+@admin_router.callback_query(F.data == "edit_field_timezone")
+async def edit_timezone_start(callback: types.CallbackQuery, state: FSMContext):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    offsets = ["UTC-3", "UTC+0", "UTC+2", "UTC+3", "UTC+4", "UTC+5", "UTC+6", "UTC+7", "UTC+8", "UTC+9"]
+    for off in offsets:
+        builder.button(text=off, callback_data=f"save_tz_{off}")
+    builder.adjust(3)
+    
+    await callback.message.edit_text("Выберите новый часовой пояс:", reply_markup=builder.as_markup())
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("save_tz_"))
+async def process_edit_timezone(callback: types.CallbackQuery, state: FSMContext):
+    new_tz = callback.data.replace("save_tz_", "")
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    
+    user = await FirestoreDB.get_user(client_id)
+    if user:
+        await FirestoreDB.update_user(user['id'], {"timezone": new_tz})
+        await callback.message.answer(f"✅ Часовой пояс обновлен на: {hbold(new_tz)}")
+        # Show stats again
+        # We need to manually call it or better yet, just tell them it's done.
+        # Re-triggering view_user_stats_handler might be tricky with the callback data.
+    else:
+        await callback.answer("Ошибка: клиент не найден.")
+    
+    await state.clear()
 
 @admin_router.callback_query(F.data == "edit_field_quality")
 async def edit_quality_start(callback: types.CallbackQuery, state: FSMContext):
