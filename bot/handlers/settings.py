@@ -9,14 +9,23 @@ from config import ADMIN_IDS
 
 settings_router = Router()
 
-class SettingsState(StatesGroup):
-    waiting_for_time = State()
+from bot.states import SettingsState, ClientSettings
+from bot.keyboards.builders import get_main_keyboard, get_navigation_keyboard
+
+settings_router = Router()
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
+@settings_router.message(F.text == "⚙️ Настройки")
 @settings_router.message(F.text.contains("Настройки"))
 async def settings_main_handler(message: types.Message):
+    if is_admin(message.from_user.id):
+        return await admin_settings_handler(message)
+    else:
+        return await client_settings_handler(message)
+
+async def admin_settings_handler(message: types.Message):
     settings = await FirestoreDB.get_global_settings()
     
     text = (
@@ -25,7 +34,7 @@ async def settings_main_handler(message: types.Message):
         f"📍 {hbold('Контроль дедлайна:')} {settings.get('deadline_time', '20:30')}\n"
         f"📍 {hbold('Вечерний концентрат:')} {settings.get('evening_time', '21:30')}\n"
         f"📍 {hbold('Воскресная стратегия:')} {settings.get('sunday_time', '18:00')}\n\n"
-        f"Нажми на кнопку ниже, чтобы изменить время (в формате ЧЧ:ММ)."
+        f"Нажми на кнопку ниже, чтобы изменить время (в формате ЧЧ:ММ). Все изменения применяются глобально."
     )
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -35,14 +44,81 @@ async def settings_main_handler(message: types.Message):
     builder.button(text="🧠 Вечер", callback_data="set_time_evening")
     builder.button(text="📊 Воскресенье", callback_data="set_time_sunday")
     
-    if is_admin(message.from_user.id):
-        builder.button(text="🌅 Утренний Импульс", callback_data="trigger_morning")
-        builder.button(text="📝 Вечерний Лог", callback_data="trigger_evening")
-        builder.button(text="📊 Итоги Недели", callback_data="trigger_weekly")
+    builder.button(text="🚀 Запустить Утро", callback_data="trigger_morning")
+    builder.button(text="📝 Запросить Логи", callback_data="trigger_evening")
+    builder.button(text="📊 Итоги Недели", callback_data="trigger_weekly")
         
     builder.adjust(2)
     
     await message.answer(text, reply_markup=builder.as_markup())
+
+async def client_settings_handler(message: types.Message):
+    user = await FirestoreDB.get_user(message.from_user.id)
+    if not user:
+        return await message.answer("❌ Ошибка: профиль не найден.")
+
+    text = (
+        f"👤 {hbold('Мой Профиль')}\n\n"
+        f"🆔 {hbold('ID:')} {user.get('tg_id')}\n"
+        f"👤 {hbold('Имя:')} {user.get('full_name')}\n"
+        f"🌍 {hbold('Часовой пояс:')} {user.get('timezone', 'UTC+0')}\n"
+        f"💎 {hbold('Качество (L1):')} {user.get('target_quality_l1') or 'Не задано'}\n"
+        f"🎬 {hbold('Сценарий:')} {user.get('scenario_type') or 'Не задан'}\n\n"
+        f"Ты можешь изменить свое имя или часовой пояс. Данные спринта (качество/сценарий) меняются только администратором."
+    )
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✏️ Изменить Имя", callback_data="client_edit_name")
+    builder.button(text="🌍 Изменить Часовой Пояс", callback_data="client_edit_tz")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup())
+
+# --- Client Settings Handlers ---
+
+@settings_router.callback_query(F.data == "client_edit_name")
+async def client_edit_name_start(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(ClientSettings.waiting_for_edit_name)
+    await callback.message.answer("Введите ваше новое имя:", reply_markup=get_navigation_keyboard())
+    await callback.answer()
+
+@settings_router.message(ClientSettings.waiting_for_edit_name)
+async def process_client_edit_name(message: types.Message, state: FSMContext):
+    if message.text == "⬅️ Назад" or message.text == "🏠 В меню":
+        await state.clear()
+        await message.answer("Изменение имени отменено.", reply_markup=get_main_keyboard(is_admin=False))
+        return
+
+    new_name = message.text.strip()
+    if len(new_name) < 2:
+        await message.answer("Имя слишком короткое. Попробуйте еще раз.")
+        return
+
+    await FirestoreDB.update_user(message.from_user.id, {"full_name": new_name})
+    await state.clear()
+    await message.answer(f"✅ Имя успешно обновлено на: {hbold(new_name)}", reply_markup=get_main_keyboard(is_admin=False))
+
+@settings_router.callback_query(F.data == "client_edit_tz")
+async def client_edit_tz_start(callback: types.CallbackQuery, state: FSMContext):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    offsets = ["UTC-3", "UTC+0", "UTC+2", "UTC+3", "UTC+4", "UTC+5", "UTC+6", "UTC+7", "UTC+8", "UTC+9"]
+    for off in offsets:
+        builder.button(text=off, callback_data=f"client_save_tz_{off}")
+    builder.adjust(3)
+    
+    await callback.message.edit_text("Выберите ваш часовой пояс:", reply_markup=builder.as_markup())
+    await callback.answer()
+
+@settings_router.callback_query(F.data.startswith("client_save_tz_"))
+async def process_client_edit_tz(callback: types.CallbackQuery):
+    new_tz = callback.data.replace("client_save_tz_", "")
+    await FirestoreDB.update_user(callback.from_user.id, {"timezone": new_tz})
+    await callback.message.edit_text(f"✅ Часовой пояс обновлен на: {hbold(new_tz)}")
+    await callback.answer("Сохранено!")
+
+# --- Global Admin Settings Handlers ---
 
 @settings_router.callback_query(F.data.startswith("trigger_"))
 async def trigger_manual_callback(callback: types.CallbackQuery):
