@@ -12,12 +12,14 @@ SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 
 def get_gsheets_client():
     """
-    Returns a fresh gspread client using credentials.json.
-    (Caching removed per Attempt 36 to prevent hangs).
+    Returns a fresh gspread client using credentials.
+    Supports multiple possible locations for the credentials file.
     """
-    creds_path = "credentials.json"
-    if not os.path.exists(creds_path):
-        logging.error("credentials.json not found. Google Sheets integration disabled.")
+    creds_paths = ["resources/google_credentials.json", "credentials.json"]
+    creds_path = next((p for p in creds_paths if os.path.exists(p)), None)
+    
+    if not creds_path:
+        logging.error("Google credentials not found. Google Sheets integration disabled.")
         return None
     
     try:
@@ -80,8 +82,19 @@ async def sync_user_to_sheets(user_data: dict):
 
 async def get_daily_task_from_sheets(day: int, scenario: str):
     """
-    Fetches task from CONTENT_TIMELINE sheet based on day and scenario.
+    Fetches task from CONTENT_TIMELINE sheet based on day and scenario-specific column.
     """
+    scenario_map = {
+        "sovereign": "Sovereign (Власть и Границы)",
+        "expansion": "Expansion (Наглость и Масштаб)",
+        "vitality": "Vitality (Ресурс и Энергия)",
+        "architect": "Architect (Интуиция и Хаос)"
+    }
+    
+    # Normalize scenario name
+    scenario_key = str(scenario).lower().strip()
+    target_column = scenario_map.get(scenario_key, "Sovereign (Власть и Границы)")
+
     def _get_task():
         client = get_gsheets_client()
         if not client: return None
@@ -90,11 +103,9 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
             worksheet = sh.worksheet("CONTENT_TIMELINE")
             records = worksheet.get_all_records()
             for row in records:
-                if str(row.get('День')) == str(day) and row.get('Этап', '').lower() == scenario.lower():
-                    return row.get('Задание (Task_Body)')
-            for row in records:
                 if str(row.get('День')) == str(day):
-                    return row.get('Задание (Task_Body)')
+                    task = row.get(target_column)
+                    return task if task and str(task).strip() else None
         except Exception as e:
             logging.error(f"Error getting task from sheets: {e}")
         return None
@@ -104,6 +115,7 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
 async def get_evening_question_from_sheets(user_day: int, scenario: str):
     """
     Fetches questions from EVENING_LOGS sheet based on user_day and scenario.
+    Matches the actual column structure with specific question fields.
     """
     def _get_questions():
         client = get_gsheets_client()
@@ -121,18 +133,18 @@ async def get_evening_question_from_sheets(user_day: int, scenario: str):
             worksheet = sh.worksheet("EVENING_LOGS")
             records = worksheet.get_all_records()
             
-            # 2. Filter by week and scenario
-            target_scenario = scenario.lower()
+            # 2. Filter by week and scenario (Matching Сценарий (L2) column)
+            target_scenario = str(scenario).lower().strip()
             matches = [
                 r for r in records 
-                if str(r.get('Неделя')) == str(week) and str(r.get('Этап (Сценарий)', '')).lower() == target_scenario
+                if str(r.get('Неделя')) == str(week) and str(r.get('Сценарий (L2)', '')).lower().strip() == target_scenario
             ]
             
             # 3. Fallback to "Общий" if no scenario-specific questions found
             if not matches:
                 matches = [
                     r for r in records 
-                    if str(r.get('Неделя')) == str(week) and str(r.get('Этап (Сценарий)', '')).lower() == "общий"
+                    if str(r.get('Неделя')) == str(week) and str(r.get('Сценарий (L2)', '')).lower().strip() in ["общий", "общее"]
                 ]
             
             if not matches:
@@ -141,10 +153,11 @@ async def get_evening_question_from_sheets(user_day: int, scenario: str):
             # 4. Pick random variant
             selected_row = random.choice(matches)
             
-            # 5. Concatenate questions (Вопрос 1, 2, 3, 4)
+            # 5. Concatenate questions based on actual column names
             questions = []
-            for i in range(1, 5):
-                q = selected_row.get(f'Вопрос {i}')
+            question_cols = ["1 (Факт)", "2 (Трение)", "3 (Хранитель)", "4 (Инсайт)"]
+            for col in question_cols:
+                q = selected_row.get(f'Вопрос {col}')
                 if q and str(q).strip():
                     questions.append(str(q).strip())
             
