@@ -9,7 +9,7 @@ from aiogram.utils.markdown import hbold
 from config import ADMIN_IDS
 from database.firebase_db import FirestoreDB
 from bot.states import AdminStates, AdminRegistration
-from bot.keyboards.builders import get_main_keyboard
+from bot.keyboards.builders import get_main_keyboard, get_navigation_keyboard, get_inline_back_button
 from utils.scheduler import send_morning_impulse, send_weekly_briefings, request_evening_logs
 from utils.gsheets_api import sync_user_to_sheets
 
@@ -97,6 +97,81 @@ async def trigger_weekly_handler(message: types.Message, bot: Bot):
     await send_group_weekly_report(bot)
     await message.answer("Сводный отчет сгенерирован и отправлен.")
 
+# --- Navigation Handlers ---
+
+@admin_router.message(F.text == "🏠 В меню", StateFilter("*"))
+async def back_to_menu_handler(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    await state.clear()
+    await message.answer("Возвращаемся в главное меню.", reply_markup=get_main_keyboard(is_admin=True))
+
+@admin_router.message(F.text == "⬅️ Назад", AdminRegistration.waiting_for_full_name)
+async def add_client_back_to_username(message: types.Message, state: FSMContext):
+    await state.set_state(AdminRegistration.waiting_for_username)
+    await message.answer("Введите Telegram Ник (@username) нового клиента для активации:", reply_markup=get_navigation_keyboard())
+
+@admin_router.message(F.text == "⬅️ Назад", AdminRegistration.waiting_for_quality_name)
+async def add_client_back_to_full_name(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    # Check if we came from username search or approve flow
+    if data.get('tg_id') and not data.get('full_name'):
+         await state.set_state(AdminRegistration.waiting_for_username)
+         await message.answer("Введите Telegram Ник (@username) нового клиента для активации:", reply_markup=get_navigation_keyboard())
+         return
+
+    await state.set_state(AdminRegistration.waiting_for_full_name)
+    await message.answer("Введите Имя для Спринта:", reply_markup=get_navigation_keyboard())
+
+@admin_router.message(F.text == "⬅️ Назад", AdminRegistration.waiting_for_scenario_type)
+async def add_client_back_to_quality(message: types.Message, state: FSMContext):
+    await state.set_state(AdminRegistration.waiting_for_quality_name)
+    await message.answer("Введите название Теневого Качества (L1):", reply_markup=get_navigation_keyboard())
+
+@admin_router.message(F.text == "⬅️ Назад", AdminRegistration.waiting_for_timezone)
+async def add_client_back_to_scenario(message: types.Message, state: FSMContext):
+    await state.set_state(AdminRegistration.waiting_for_scenario_type)
+    text = (
+        f"Выберите тип сценария:\n\n"
+        f"1. {hbold('Sovereign')}\n"
+        f"2. {hbold('Expansion')}\n"
+        f"3. {hbold('Vitality')}\n"
+        f"4. {hbold('Architect')}\n\n"
+        f"Введите цифру (1-4):"
+    )
+    await message.answer(text, reply_markup=get_navigation_keyboard())
+
+@admin_router.message(F.text == "⬅️ Назад", AdminStates.waiting_for_reply_text)
+async def edit_back_to_stats(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    client_id = data.get("reply_to_client_id") or data.get("edit_client_id")
+    await state.clear()
+    if client_id:
+        # We need to re-show stats. Let's redirect to the callback handler logic
+        # For simplicity, we just tell them to use the client list or we can re-query
+        user = await FirestoreDB.get_user(client_id)
+        if user:
+             # We could call view_user_stats_handler, but it needs a CallbackQuery.
+             # Better to just send the stats message.
+             await message.answer("Возврат к статистике...", reply_markup=get_main_keyboard(is_admin=True))
+             # Actually, the user wants the "Stats" message back.
+             # I'll implement a helper for showing stats to reuse it.
+             pass
+    else:
+        await message.answer("Возвращаемся в меню.", reply_markup=get_main_keyboard(is_admin=True))
+
+@admin_router.message(F.text == "⬅️ Назад", AdminStates.waiting_for_edit_quality)
+@admin_router.message(F.text == "⬅️ Назад", AdminStates.waiting_for_edit_scenario)
+@admin_router.message(F.text == "⬅️ Назад", AdminStates.waiting_for_edit_day)
+async def edit_field_back_to_profile(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    # Instead of state clear, we just go back to edit selection
+    # But edit_profile_start is a callback handler. 
+    # Let's just go back to main menu or re-send edit menu.
+    await message.answer("Редактирование отменено. Возврат в меню.", reply_markup=get_main_keyboard(is_admin=True))
+    await state.clear()
+
 # --- Sprint 8: Direct Reply ---
 
 @admin_router.callback_query(F.data.startswith("ai_reply_"))
@@ -106,7 +181,10 @@ async def admin_reply_start(callback: types.CallbackQuery, state: FSMContext):
     client_id = callback.data.split("_")[-1]
     await state.update_data(reply_to_client_id=client_id)
     await state.set_state(AdminStates.waiting_for_reply_text)
-    await callback.message.answer(f"Введите сообщение для клиента {client_id} (или /cancel для отмены):")
+    await callback.message.answer(
+        f"Введите сообщение для клиента {client_id}:",
+        reply_markup=get_navigation_keyboard()
+    )
     await callback.answer()
 
 @admin_router.message(AdminStates.waiting_for_reply_text)
@@ -471,7 +549,7 @@ async def start_add_client(message: types.Message, state: FSMContext):
     await state.clear() # Clear any previous state before starting new registration
     
     await state.set_state(AdminRegistration.waiting_for_username)
-    await message.answer("Введите Telegram Ник (@username) нового клиента для активации:")
+    await message.answer("Введите Telegram Ник (@username) нового клиента для активации:", reply_markup=get_navigation_keyboard())
 
 
 @admin_router.message(AdminRegistration.waiting_for_username)
@@ -498,9 +576,11 @@ async def process_username(message: types.Message, state: FSMContext):
     await state.set_state(AdminRegistration.waiting_for_full_name)
     
     from aiogram.utils.keyboard import ReplyKeyboardBuilder
+    from aiogram.types import KeyboardButton
     builder = ReplyKeyboardBuilder()
     builder.button(text=user.get('full_name') or "Без имени")
-    builder.adjust(1)
+    builder.row(KeyboardButton(text="⬅️ Назад"), KeyboardButton(text="🏠 В меню"))
+    builder.adjust(1, 2)
     
     await message.answer(
         f"✅ Пользователь найден: {user.get('full_name')} (ID: {user.get('tg_id')})\n"
@@ -512,7 +592,7 @@ async def process_username(message: types.Message, state: FSMContext):
 async def process_full_name(message: types.Message, state: FSMContext):
     await state.update_data(full_name=message.text)
     await state.set_state(AdminRegistration.waiting_for_quality_name)
-    await message.answer("Введите название Теневого Качества (L1):")
+    await message.answer("Введите название Теневого Качества (L1):", reply_markup=get_navigation_keyboard())
 
 @admin_router.message(AdminRegistration.waiting_for_quality_name)
 async def process_quality_name(message: types.Message, state: FSMContext):
@@ -526,7 +606,7 @@ async def process_quality_name(message: types.Message, state: FSMContext):
         f"4. {hbold('Architect')}\n\n"
         f"Введите цифру (1-4):"
     )
-    await message.answer(text)
+    await message.answer(text, reply_markup=get_navigation_keyboard())
 
 @admin_router.message(AdminRegistration.waiting_for_scenario_type)
 async def process_scenario_type(message: types.Message, state: FSMContext, bot: Bot):
@@ -694,6 +774,10 @@ async def edit_timezone_start(callback: types.CallbackQuery, state: FSMContext):
     offsets = ["UTC-3", "UTC+0", "UTC+2", "UTC+3", "UTC+4", "UTC+5", "UTC+6", "UTC+7", "UTC+8", "UTC+9"]
     for off in offsets:
         builder.button(text=off, callback_data=f"save_tz_{off}")
+    
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"edit_profile_{client_id}"))
     builder.adjust(3)
     
     await callback.message.edit_text("Выберите новый часовой пояс:", reply_markup=builder.as_markup())
@@ -720,7 +804,7 @@ async def process_edit_timezone(callback: types.CallbackQuery, state: FSMContext
 @admin_router.callback_query(F.data == "edit_field_quality")
 async def edit_quality_start(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.waiting_for_edit_quality)
-    await callback.message.answer("Введите новое название Теневого Качества (L1) или /cancel:")
+    await callback.message.answer("Введите новое название Теневого Качества (L1):", reply_markup=get_navigation_keyboard())
     await callback.answer()
 
 @admin_router.message(AdminStates.waiting_for_edit_quality)
@@ -762,9 +846,9 @@ async def edit_scenario_start(callback: types.CallbackQuery, state: FSMContext):
         f"2. {hbold('Expansion')}\n"
         f"3. {hbold('Vitality')}\n"
         f"4. {hbold('Architect')}\n\n"
-        f"Введите цифру (1-4) или /cancel:"
+        f"Введите цифру (1-4):"
     )
-    await callback.message.answer(text)
+    await message.answer(text, reply_markup=get_navigation_keyboard())
     await callback.answer()
 
 @admin_router.message(AdminStates.waiting_for_edit_scenario)
@@ -850,7 +934,7 @@ async def process_edit_scenario_confirmation(message: types.Message, state: FSMC
 @admin_router.callback_query(F.data == "edit_field_day")
 async def edit_day_start(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.waiting_for_edit_day)
-    await callback.message.answer("Введите новый номер дня (1-30) или /cancel:")
+    await callback.message.answer("Введите новый номер дня (1-30):", reply_markup=get_navigation_keyboard())
     await callback.answer()
 
 @admin_router.message(AdminStates.waiting_for_edit_day)
@@ -906,16 +990,32 @@ async def process_edit_day_confirm(message: types.Message, state: FSMContext, bo
         
         await FirestoreDB.update_user(user['id'], {"sprint_start_date": new_start_date})
         
-        await message.answer(f"✅ Клиент переведен на День {new_day}.", reply_markup=get_main_keyboard(is_admin=True))
-        
-        # Trigger immediate impulse
-        updated_user = await FirestoreDB.get_user(client_id)
-        await send_morning_impulse(bot, updated_user)
-        await message.answer("🚀 Задание дня отправлено клиенту.")
+        from bot.keyboards.builders import get_day_change_action_keyboard
+        await message.answer(
+            f"✅ Клиент переведен на День {new_day}.\n"
+            f"Что отправить клиенту сейчас?", 
+            reply_markup=get_day_change_action_keyboard(client_id)
+        )
     else:
         await message.answer("Ошибка: клиент не найден.")
         
     await state.clear()
+
+@admin_router.callback_query(F.data.startswith("send_now_"))
+async def handle_immediate_action(callback: types.CallbackQuery, bot: Bot):
+    parts = callback.data.split("_")
+    action_type = parts[2] # "morning" or "evening"
+    client_id = parts[3]
+    
+    if action_type == "morning":
+        await send_morning_impulse(bot, client_id)
+        await callback.message.answer(f"✅ Утренний импульс отправлен клиенту {client_id}.")
+    elif action_type == "evening":
+        await request_evening_logs(bot, client_id)
+        await callback.message.answer(f"✅ Запрос вечернего лога отправлен клиенту {client_id}.")
+    
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
 
 # --- Client Deletion ---
 

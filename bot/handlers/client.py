@@ -14,6 +14,10 @@ from datetime import datetime, timezone
 
 client_router = Router()
 
+@client_router.message(F.text == "🏠 В меню")
+async def client_back_to_menu(message: types.Message):
+    await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=False))
+
 @client_router.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
     is_admin = message.from_user.id in ADMIN_IDS
@@ -277,7 +281,10 @@ async def shadow_log_prompt_handler(message: types.Message):
         "• Какие инсайты или 'тени' ты заметил?\n\n"
         f"{hitalic('Пришли текстовое или голосовое сообщение прямо сейчас.')} Бот проанализирует его на предмет саботажа и даст обратную связь."
     )
-    await message.answer(text)
+    from aiogram.utils.keyboard import ReplyKeyboardBuilder
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="🏠 В меню")
+    await message.answer(text, reply_markup=builder.as_markup(resize_keyboard=True))
 
 @client_router.message(F.text | F.voice | F.audio)
 async def log_handler(message: types.Message, bot: Bot):
