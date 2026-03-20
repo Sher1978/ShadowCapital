@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from aiogram import Router, F, types, Bot
 from aiogram.filters import Command, StateFilter
@@ -680,6 +680,7 @@ async def edit_profile_start(callback: types.CallbackQuery, state: FSMContext):
     builder.button(text="🎯 Качество (L1)", callback_data="edit_field_quality")
     builder.button(text="👁 Сценарий", callback_data="edit_field_scenario")
     builder.button(text="🌍 Часовой пояс", callback_data="edit_field_timezone")
+    builder.button(text="📅 День Спринта", callback_data="edit_field_day")
     builder.button(text="⬅️ Отмена", callback_data=f"view_stats_{client_id}")
     builder.adjust(1)
     
@@ -844,6 +845,76 @@ async def process_edit_scenario_confirmation(message: types.Message, state: FSMC
     else:
         await message.answer("Ошибка: клиент не найден.")
             
+    await state.clear()
+
+@admin_router.callback_query(F.data == "edit_field_day")
+async def edit_day_start(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(AdminStates.waiting_for_edit_day)
+    await callback.message.answer("Введите новый номер дня (1-30) или /cancel:")
+    await callback.answer()
+
+@admin_router.message(AdminStates.waiting_for_edit_day)
+async def process_edit_day(message: types.Message, state: FSMContext):
+    if message.text == "/cancel":
+        await state.clear()
+        await message.answer("Редактирование отменено.", reply_markup=get_main_keyboard(is_admin=True))
+        return
+        
+    if not message.text.isdigit():
+        await message.answer("Пожалуйста, введите число (1-30).")
+        return
+        
+    day = int(message.text)
+    if not (1 <= day <= 30):
+        await message.answer("Номер дня должен быть от 1 до 30.")
+        return
+        
+    await state.update_data(new_day=day)
+    await state.set_state(AdminStates.waiting_for_edit_day_confirm)
+    
+    from aiogram.utils.keyboard import ReplyKeyboardBuilder
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="✅ Подтвердить перенос")
+    builder.button(text="❌ Отмена")
+    builder.adjust(2)
+    
+    await message.answer(
+        f"Вы уверены, что хотите перевести клиента на {hbold(f'День {day}')}?\n"
+        f"Клиенту будет немедленно отправлено задание этого дня.",
+        reply_markup=builder.as_markup(resize_keyboard=True)
+    )
+
+@admin_router.message(AdminStates.waiting_for_edit_day_confirm)
+async def process_edit_day_confirm(message: types.Message, state: FSMContext, bot: Bot):
+    if message.text == "❌ Отмена":
+        await state.clear()
+        await message.answer("Перенос отменен.", reply_markup=get_main_keyboard(is_admin=True))
+        return
+        
+    if message.text != "✅ Подтвердить перенос":
+        await message.answer("Пожалуйста, используйте кнопки.")
+        return
+        
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    new_day = data.get("new_day")
+    
+    user = await FirestoreDB.get_user(client_id)
+    if user:
+        now = datetime.now(timezone.utc)
+        new_start_date = now - timedelta(days=new_day - 1)
+        
+        await FirestoreDB.update_user(user['id'], {"sprint_start_date": new_start_date})
+        
+        await message.answer(f"✅ Клиент переведен на День {new_day}.", reply_markup=get_main_keyboard(is_admin=True))
+        
+        # Trigger immediate impulse
+        updated_user = await FirestoreDB.get_user(client_id)
+        await send_morning_impulse(bot, updated_user)
+        await message.answer("🚀 Задание дня отправлено клиенту.")
+    else:
+        await message.answer("Ошибка: клиент не найден.")
+        
     await state.clear()
 
 # --- Client Deletion ---
