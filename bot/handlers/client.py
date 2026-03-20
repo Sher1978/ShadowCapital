@@ -134,6 +134,33 @@ async def morning_confirm_handler(callback: types.CallbackQuery):
     )
     await callback.answer("Готовность подтверждена!")
 
+    # Notify Admins
+    from aiogram import Bot
+    bot = callback.bot
+    client_name = user.get('full_name', "N/A")
+    confirm_time = datetime.now(timezone.utc).strftime("%H:%M")
+    
+    # Try to extract just the task body (between greetings and footer)
+    task_text = original_text
+    lines = original_text.split('\n\n')
+    if len(lines) >= 3:
+        # Based on utils/scheduler.py structure: [greeting, quality:impulse, task_body, footer]
+        # We want the 3rd block (index 2)
+        task_text = lines[2]
+
+    admin_msg = (
+        f"✅ {hbold('Задача принята!')}\n\n"
+        f"👤 {hbold('Клиент:')} {client_name}\n"
+        f"⏰ {hbold('Время:')} {confirm_time} UTC\n"
+        f"📝 {hbold('Задание:')}\n{task_text}"
+    )
+
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, admin_msg)
+        except Exception as e:
+            logging.error(f"Failed to notify admin {admin_id} about task acceptance: {e}")
+
 @client_router.message(F.text == "Как это работает")
 async def how_it_works_handler(message: types.Message) -> None:
     text = (
