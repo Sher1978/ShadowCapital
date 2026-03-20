@@ -68,6 +68,17 @@ class FirestoreDB:
         return [doc.to_dict() for doc in docs]
 
     @staticmethod
+    async def get_today_log(user_doc_id: str) -> Optional[Dict[str, Any]]:
+        """Check if there's a log for the current UTC day."""
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        docs = db.collection("users").document(user_doc_id).collection("logs") \
+                 .where("created_at", ">=", today_start) \
+                 .limit(1).stream()
+        for doc in docs:
+            return doc.to_dict()
+        return None
+
+    @staticmethod
     async def get_global_settings() -> Dict[str, Any]:
         """Fetch global settings."""
         doc = db.collection("settings").document("global").get()

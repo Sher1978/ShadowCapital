@@ -1,5 +1,6 @@
 from aiogram import Router, types, F, Bot
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hbold, hitalic
 from database.firebase_db import FirestoreDB
 from bot.keyboards.builders import get_main_keyboard
@@ -268,11 +269,8 @@ async def delete_my_data_handler(message: types.Message):
         "но история сообщений очищена."
     )
 
-@client_router.message(F.text == "📝 Shadow Log")
-async def shadow_log_prompt_handler(message: types.Message):
-    """
-    Prompt the user to send their daily log.
-    """
+async def trigger_shadow_log_prompt(message: types.Message):
+    """Refactored helper to show the report prompt."""
     text = (
         f"{hbold('📝 Твой Shadow Log')}\n\n"
         "Это пространство для твоей честности. Расскажи, как прошел твой день в контексте Спринта:\n"
@@ -285,6 +283,57 @@ async def shadow_log_prompt_handler(message: types.Message):
     builder = ReplyKeyboardBuilder()
     builder.button(text="🏠 В меню")
     await message.answer(text, reply_markup=builder.as_markup(resize_keyboard=True))
+
+@client_router.message(F.text == "📝 Shadow Log")
+async def shadow_log_prompt_handler(message: types.Message):
+    user = await FirestoreDB.get_user(message.from_user.id)
+    if not user: return
+    
+    today_log = await FirestoreDB.get_today_log(user['id'])
+    if today_log:
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔄 Пересдать отчет", callback_data="re_submit_log")
+        builder.button(text="🏠 В меню", callback_data="back_to_menu")
+        builder.adjust(1)
+        await message.answer("⚠️ Ты уже сдал отчет сегодня. Хочешь обновить его?", reply_markup=builder.as_markup())
+        return
+
+    await trigger_shadow_log_prompt(message)
+
+@client_router.callback_query(F.data == "start_early_log")
+async def start_early_log_callback(callback: types.CallbackQuery):
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user: 
+        await callback.answer("Профиль не найден.")
+        return
+        
+    today_log = await FirestoreDB.get_today_log(user['id'])
+    if today_log:
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔄 Пересдать отчет", callback_data="re_submit_log")
+        builder.button(text="🏠 В меню", callback_data="back_to_menu")
+        builder.adjust(1)
+        await callback.message.answer("⚠️ Ты уже сдал отчет сегодня. Хочешь обновить его?", reply_markup=builder.as_markup())
+    else:
+        await trigger_shadow_log_prompt(callback.message)
+    await callback.answer()
+
+@client_router.callback_query(F.data == "back_to_menu")
+async def back_to_menu_callback(callback: types.CallbackQuery, state: FSMContext = None):
+    if state:
+        await state.clear()
+    await callback.message.delete()
+    # Simple menu return - user is active if they are here
+    await callback.message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=False, is_active=True))
+    await callback.answer()
+
+@client_router.callback_query(F.data == "re_submit_log")
+async def re_submit_log_callback(callback: types.CallbackQuery):
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await trigger_shadow_log_prompt(callback.message)
+    await callback.answer()
 
 @client_router.message(F.text | F.voice | F.audio)
 async def log_handler(message: types.Message, bot: Bot):

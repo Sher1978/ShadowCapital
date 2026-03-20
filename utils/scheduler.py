@@ -128,12 +128,14 @@ async def send_morning_impulse(bot: Bot, user: dict = None):
             f"{greeting}\n\n"
             f"💎 {hbold(u.get('target_quality_l1'))}: Утренний Импульс (День {day})\n\n"
             f"{task_body}\n\n"
-            f"Помни про обход Хранителя — действуй мягко."
+            f"Ты можешь сдать отчет в любое время в течение дня по кнопке ниже или дождаться вечернего запроса."
         )
         
         from aiogram.utils.keyboard import InlineKeyboardBuilder
         builder = InlineKeyboardBuilder()
         builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
+        builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
+        builder.adjust(1)
         
         try:
             await bot.send_message(u.get('tg_id'), text, reply_markup=builder.as_markup())
