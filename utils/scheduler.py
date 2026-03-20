@@ -60,14 +60,16 @@ async def send_admin_deadline_control(bot: Bot):
 
 async def send_admin_evening_concentrate(bot: Bot):
     """21:30 UTC: Summary of the day's insights."""
+    from database.firebase_db import Query
     # Get top 5 active users with highest SFI who have an insight
-    docs = FirestoreDB.db.collection("users") \
+    query = FirestoreDB.db.collection("users") \
              .where("status", "==", "active") \
-             .order_by("sfi_index", direction=FirestoreDB.firestore.Query.DESCENDING) \
-             .limit(20).stream()
+             .order_by("sfi_index", direction=Query.DESCENDING) \
+             .limit(20)
+    docs = query.stream()
     
     users = []
-    for doc in docs:
+    async for doc in docs:
         d = doc.to_dict()
         if d.get("last_insight"):
             users.append(d)

@@ -37,13 +37,16 @@ async def main() -> None:
     
     try:
         # 2. Delayed (Lazy) Imports for Fast Startup
-        logger.info("📦 [STARTUP] Phase 2: Loading Project Modules...")
+        logger.info("📦 [STARTUP] Phase 2.1: Loading config...")
         import config
         from config import BOT_TOKEN
+        logger.info("📦 [STARTUP] Phase 2.2: Loading handlers...")
         from bot.handlers.client import client_router
-        from bot.middlewares.fsm_reset import FsmResetMiddleware
         from bot.handlers.admin import admin_router
         from bot.handlers.settings import settings_router
+        logger.info("📦 [STARTUP] Phase 2.3: Loading middlewares...")
+        from bot.middlewares.fsm_reset import FsmResetMiddleware
+        logger.info("📦 [STARTUP] Phase 2.4: Loading scheduler...")
         from utils.scheduler import setup_scheduler, reload_admin_jobs
         
         from aiogram import Bot, Dispatcher
