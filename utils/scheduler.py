@@ -90,8 +90,8 @@ async def send_admin_evening_concentrate(bot: Bot):
         try: await bot.send_message(admin_id, text)
         except: pass
 
-async def send_morning_impulse(bot: Bot, user: dict = None):
-    """Sends morning impulse to a specific user or all active users."""
+async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
+    """Sends morning impulse to a specific user or all active users. Returns count of sent messages."""
     now = datetime.now(timezone.utc)
     logger.info(f"🌅 [SCHEDULER] Starting send_morning_impulse. Manual trigger: {user is not None}")
     
@@ -102,34 +102,24 @@ async def send_morning_impulse(bot: Bot, user: dict = None):
         
     logger.info(f"🌅 [SCHEDULER] Found {len(users)} active users for morning pulse.")
     
+    count = 0
     for u in users:
         u_id = u.get('tg_id')
+        if not u_id: continue
+        
         logger.debug(f"🌅 [SCHEDULER] Processing user {u_id} ({u.get('full_name')})")
         
-        # Calculate day
         start_date = u.get('sprint_start_date') or u.get('created_at')
-        if not start_date: 
-            logger.warning(f"⚠️ [SCHEDULER] User {u_id} has no start date, skipping.")
-            continue
+        if not start_date: continue
         
-        # Determine if start_date is already a datetime (Firestore) or needs conversion
         if isinstance(start_date, str):
-            try: 
-                start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-                logger.debug(f"🌅 [SCHEDULER] Parsed start_date string for {u_id}: {start_date}")
-            except Exception as e: 
-                logger.error(f"❌ [SCHEDULER] Failed to parse start_date for {u_id}: {e}")
-                continue
+            try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except: continue
         
         try:
             day = (now - start_date).days + 1
-            logger.debug(f"🌅 [SCHEDULER] User {u_id} is on day {day}")
-            
-            # Fetch from Sheets
-            logger.debug(f"🌅 [SCHEDULER] Fetching task from Sheets for {u_id} (Scenario: {u.get('scenario_type')})")
             task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
             if not task_body:
-                logger.warning(f"⚠️ [SCHEDULER] No task found for day {day} in Sheets for {u_id}. Using fallback.")
                 task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
             
             import random
@@ -140,10 +130,8 @@ async def send_morning_impulse(bot: Bot, user: dict = None):
                 "🔥 Прекрасное утро, чтобы бросить вызов Хранителю и победить.",
                 "🌟 Доброе утро! Твоя энергия сегодня — ключ к новым вершинам."
             ]
-            greeting = random.choice(greetings)
-            
             text = (
-                f"{greeting}\n\n"
+                f"{random.choice(greetings)}\n\n"
                 f"💎 {hbold(u.get('target_quality_l1'))}: Утренний Импульс (День {day})\n\n"
                 f"{task_body}\n\n"
                 f"Ты можешь сдать отчет в любое время в течение дня по кнопке ниже или дождаться вечернего запроса."
@@ -155,54 +143,64 @@ async def send_morning_impulse(bot: Bot, user: dict = None):
             builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
             builder.adjust(1)
             
-            logger.info(f"📤 [SCHEDULER] Sending message to {u_id}...")
             await bot.send_message(u_id, text, reply_markup=builder.as_markup())
             await FirestoreDB.update_user(u['id'], {"last_morning_sent": now})
             logger.info(f"✅ [SCHEDULER] Morning impulse sent to {u_id}")
+            count += 1
         except Exception as e:
-            logger.error(f"❌ [SCHEDULER] Failed to process morning for {u_id}: {e}", exc_info=True)
-    
-    logger.info("🌅 [SCHEDULER] send_morning_impulse finished.")
+            logger.error(f"❌ [SCHEDULER] Failed to process morning for {u_id}: {e}")
+            
+    logger.info(f"🌅 [SCHEDULER] Finished. Total sent: {count}")
+    return count
 
-async def request_evening_logs(bot: Bot, user: dict = None):
-    """Sends evening log request to a specific user or all active users."""
+async def request_evening_logs(bot: Bot, user: dict = None) -> int:
+    """Sends evening log request to a specific user or all active users. Returns count sent."""
     now = datetime.now(timezone.utc)
+    logger.info(f"🌙 [SCHEDULER] Starting request_evening_logs. Manual: {user is not None}")
     
     if user:
         users = [user]
     else:
         users = await FirestoreDB.get_active_users()
         
+    count = 0
     for u in users:
-        # Calculate day
-        start_date = u.get('sprint_start_date') or u.get('created_at')
-        if not start_date: continue
+        u_id = u.get('tg_id')
+        if not u_id: continue
         
-        if isinstance(start_date, str):
-            try: start_date = datetime.fromisoformat(start_date)
-            except: continue
-            
-        day = (now - start_date).days + 1
-        
-        # Fetch dynamic questions from Sheets
-        questions_text = await get_evening_question_from_sheets(day, u.get('scenario_type') or "Sovereign")
-        
-        if not questions_text:
-            questions_text = (
-                "Как сегодня проявилось твое теневое качество? Какое сопротивление ты почувствовал(а)?\n\n"
-                "Пришли текст или запиши голосовое сообщение."
-            )
-        
-        text = (
-            f"🌙 {hbold('Время для вечернего Shadow Log.')}\n\n"
-            f"{questions_text}"
-        )
         try:
-            await bot.send_message(u.get('tg_id'), text)
+            start_date = u.get('sprint_start_date') or u.get('created_at')
+            if not start_date: continue
+            if isinstance(start_date, str):
+                try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                except: continue
+                
+            day = (now - start_date).days + 1
+            questions_text = await get_evening_question_from_sheets(day, u.get('scenario_type') or "Sovereign")
+            
+            if not questions_text:
+                questions_text = (
+                    "Как сегодня проявилось твое теневое качество? Какое сопротивление ты почувствовал(а)?\n\n"
+                    "Пришли текст или запиши голосовое сообщение."
+                )
+            
+            text = (
+                f"🌙 {hbold('Время для вечернего Shadow Log.')} (День {day})\n\n"
+                f"{questions_text}"
+            )
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            builder = InlineKeyboardBuilder()
+            builder.button(text="📝 Заполнить лог", callback_data="start_evening_log")
+            builder.adjust(1)
+            
+            await bot.send_message(u_id, text, reply_markup=builder.as_markup())
             await FirestoreDB.update_user(u['id'], {"last_evening_sent": now})
-            logging.info(f"Evening request sent to {u.get('tg_id')}")
+            logger.info(f"✅ [SCHEDULER] Evening request sent to {u_id}")
+            count += 1
         except Exception as e:
-            logging.error(f"Failed to request evening from {u.get('tg_id')}: {e}")
+            logger.error(f"❌ [SCHEDULER] Failed to send evening to {u_id}: {e}")
+            
+    return count
 
 async def send_group_weekly_report(bot: Bot):
     """Generates and sends a summary report for the whole active group to admins."""

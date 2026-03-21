@@ -135,13 +135,16 @@ async def trigger_manual_callback(callback: types.CallbackQuery):
     try:
         if action == "morning":
             await callback.message.answer("🚀 Запускаю рассылку утренних импульсов...")
-            await send_morning_impulse(callback.bot)
+            count = await send_morning_impulse(callback.bot)
+            await callback.message.answer(f"✅ Рассылка импульсов завершена. Отправлено: {count} чел.")
         elif action == "evening":
             await callback.message.answer("📝 Запускаю сбор вечерних логов...")
-            await request_evening_logs(callback.bot)
+            count = await request_evening_logs(callback.bot)
+            await callback.message.answer(f"✅ Сбор логов запущен. Отправлено запросов: {count} чел.")
         elif action == "weekly":
             await callback.message.answer("📊 Запускаю рассылку итогов недели...")
             await send_group_weekly_report(callback.bot)
+            await callback.message.answer("✅ Еженедельный отчет отправлен всем админам.")
         
         await callback.answer("Запущено!")
         logger.info(f"✅ [ADMIN] Action {action} completed successfully.")
