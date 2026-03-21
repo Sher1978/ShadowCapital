@@ -32,7 +32,7 @@ async def command_start_handler(message: types.Message) -> None:
             "full_name": message.from_user.full_name,
             "role": "admin" if is_admin else "client",
             "status": "active" if is_admin else "new",
-            "sfi_index": 1.0,
+            "sfi_index": 0.5,
             "red_flags_count": 0
         }
         doc_id = await FirestoreDB.create_user(user_data)

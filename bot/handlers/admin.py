@@ -20,6 +20,7 @@ admin_router = Router()
 @admin_router.message(Command("trigger_morning"))
 async def trigger_morning_handler(message: types.Message, bot: Bot):
     if not is_admin(message.from_user.id):
+        await message.answer("⚠️ У тебя нет прав администратора.")
         return
     
     args = message.text.split()
@@ -54,6 +55,7 @@ async def trigger_morning_handler(message: types.Message, bot: Bot):
 @admin_router.message(Command("trigger_evening"))
 async def trigger_evening_handler(message: types.Message, bot: Bot):
     if not is_admin(message.from_user.id):
+        await message.answer("⚠️ У тебя нет прав администратора.")
         return
         
     args = message.text.split()
@@ -86,6 +88,7 @@ async def trigger_evening_handler(message: types.Message, bot: Bot):
 @admin_router.message(Command("trigger_weekly"))
 async def trigger_weekly_handler(message: types.Message, bot: Bot):
     if not is_admin(message.from_user.id):
+        await message.answer("⚠️ У тебя нет прав администратора.")
         return
     await message.answer("Запускаю генерацию сводного отчета по группе...")
     from utils.scheduler import send_group_weekly_report
@@ -97,6 +100,7 @@ async def trigger_weekly_handler(message: types.Message, bot: Bot):
 @admin_router.message(F.text == "🏠 В меню", StateFilter("*"))
 async def back_to_menu_handler(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
+        await message.answer("⚠️ У тебя нет прав администратора.")
         return
     await state.clear()
     await message.answer("Возвращаемся в главное меню.", reply_markup=get_main_keyboard(is_admin=True))
@@ -172,6 +176,7 @@ async def edit_field_back_to_profile(message: types.Message, state: FSMContext):
 @admin_router.callback_query(F.data.startswith("ai_reply_"))
 async def admin_reply_start(callback: types.CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.id):
+        await callback.answer("⚠️ У тебя нет прав администратора.", show_alert=True)
         return
     client_id = callback.data.split("_")[-1]
     await state.update_data(reply_to_client_id=client_id)
@@ -185,6 +190,7 @@ async def admin_reply_start(callback: types.CallbackQuery, state: FSMContext):
 @admin_router.message(AdminStates.waiting_for_reply_text)
 async def admin_reply_handler(message: types.Message, state: FSMContext, bot: Bot):
     if not is_admin(message.from_user.id):
+        await message.answer("⚠️ У тебя нет прав администратора.")
         return
     
     data = await state.get_data()
@@ -299,7 +305,7 @@ async def active_sprints_handler(message: types.Message, state: FSMContext):
     logger.info(f"🖱 Handling 'Clients' list for {user_id}")
     
     if not is_admin(user_id):
-        logger.warning(f"🚫 Unauthorized attempt to access 'Clients' by user {user_id}")
+        await message.answer("⚠️ У тебя нет прав администратора.")
         return
     
     logger.info(f"🔍 [ADMIN] 'Active Sprints' handler triggered by {user_id}")
@@ -360,7 +366,7 @@ async def show_active_page(message: types.Message, page: int = 0):
 @admin_router.message(F.text.contains("Аналитика"), StateFilter("*"))
 async def admin_analytics_handler(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
-        logger.warning(f"🚫 Unauthorized attempt to access 'Analytics' by user {message.from_user.id}")
+        await message.answer("⚠️ У тебя нет прав администратора.")
         return
     
     logger.info(f"🔍 [ADMIN] 'Analytics' handler triggered by {message.from_user.id}")
