@@ -20,6 +20,7 @@ class AdminStates(StatesGroup):
 
 class ClientStates(StatesGroup):
     waiting_for_log = State()
+    waiting_for_log_confirmation = State()
 
 class ClientSettings(StatesGroup):
     waiting_for_edit_name = State()

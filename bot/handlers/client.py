@@ -351,11 +351,15 @@ async def re_submit_log_callback(callback: types.CallbackQuery):
     await callback.answer()
 
 @client_router.message(F.text | F.voice | F.audio)
-async def log_handler(message: types.Message, bot: Bot):
+async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     user = await FirestoreDB.get_user(message.from_user.id)
     
-    if not user or user.get('role') != "client":
-        return # Ignore non-clients or other messages
+    if not user:
+        return # Ignore unknown users
+        
+    # Allow admins to test logs, or just clients
+    if user.get('role') not in ["client", "admin"]:
+        return
 
     is_voice = message.voice is not None or message.audio is not None
     file_id = None
@@ -376,12 +380,31 @@ async def log_handler(message: types.Message, bot: Bot):
             await bot.download_file(file.file_path, perm_path)
             
             # Transcribe
-            transcript = await transcribe_voice(perm_path)
-            content = transcript
+            content = await transcribe_voice(perm_path)
             
             # Cleanup
             if os.path.exists(perm_path):
                 os.remove(perm_path)
+            
+            # Transcription Confirmation UI
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            builder = InlineKeyboardBuilder()
+            builder.button(text="✅ Отправить", callback_data="confirm_log")
+            builder.button(text="🔄 Изменить", callback_data="edit_log")
+            builder.adjust(2)
+            
+            from bot.states import ClientStates
+            await state.update_data(temp_log_content=content, is_voice=True, file_id=file_id)
+            await state.set_state(ClientStates.waiting_for_log_confirmation)
+            
+            await message.answer(
+                f"📝 {hbold('Расшифровка твоего сообщения:')}\n\n"
+                f"{hitalic(content or 'Голос не распознан')}\n\n"
+                f"Все верно? Если да, нажми Отправить.",
+                reply_markup=builder.as_markup()
+            )
+            return
+            
         except Exception as e:
             logging.error(f"❌ Error processing voice message: {e}", exc_info=True)
             await message.answer("⚠️ Не удалось обработать голосовое сообщение. Пожалуйста, попробуй отправить текст.")
@@ -391,6 +414,7 @@ async def log_handler(message: types.Message, bot: Bot):
         content = "Empty Log"
 
     # Analyze for sabotage
+    from utils.analysis import analyze_sabotage
     analysis = await analyze_sabotage(
         content, 
         quality_name=user.get('target_quality_l1', "Unknown"),
@@ -457,3 +481,85 @@ async def log_handler(message: types.Message, bot: Bot):
     # Send AI auditor feedback back to user
     feedback = analysis.get("feedback_to_client") or "Принято, твой Shadow Log сохранен."
     await message.answer(feedback)
+
+@client_router.callback_query(F.data == "confirm_log")
+async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    data = await state.get_data()
+    content = data.get("temp_log_content")
+    is_voice = data.get("is_voice", False)
+    file_id = data.get("file_id")
+    
+    if not content:
+        await callback.answer("Ошибка: данные отчета не найдены.")
+        await state.clear()
+        return
+
+    await callback.message.edit_text("⌛️ Анализирую твой отчет...")
+    
+    # We call the core log processing logic. 
+    # To avoid duplication, we could refactor log_handler to a shared function.
+    # For now, I'll extract it or just repeat since it's short.
+    
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user: return
+    
+    # --- CORE ANALYSIS LOGIC ---
+    from utils.analysis import analyze_sabotage
+    analysis = await analyze_sabotage(
+        content, 
+        quality_name=user.get('target_quality_l1', "Unknown"),
+        scenario_type=user.get('scenario_type', "N/A")
+    )
+
+    log_data = {
+        "content": content,
+        "is_voice": is_voice,
+        "file_id": file_id,
+        "local_file_path": None,
+        "is_sabotage": analysis.get("is_sabotage", False),
+        "sfi_score": analysis.get("sfi_score", 0.5),
+        "feedback_to_client": analysis.get("feedback_to_client", ""),
+        "analysis_reason": analysis.get("internal_analysis", "")
+    }
+    await FirestoreDB.add_log(user['id'], log_data)
+    
+    update_data = {
+        "sfi_index": analysis.get("sfi_score", 0.5),
+        "last_insight": analysis.get("last_insight", "")
+    }
+    
+    if analysis.get("is_sabotage", False):
+        red_flags = user.get('red_flags_count', 0) + 1
+        update_data["red_flags_count"] = red_flags
+        
+        for admin_id in ADMIN_IDS:
+             try:
+                 if red_flags >= 3:
+                     await bot.send_message(admin_id, f"🚨 {hbold('CRITICAL RED ALERT')}: {user.get('full_name')} ({user.get('tg_id')}) [{red_flags}/3]")
+                 await send_red_alert(bot, user.get('full_name'), user.get('tg_id'), "SABOTAGE", analysis.get("internal_analysis", ""), content)
+             except: pass
+
+    await FirestoreDB.update_user(user['id'], update_data)
+    
+    await sync_user_to_sheets({
+        "user_id": user.get('tg_id'),
+        "name": user.get('full_name'),
+        "target_quality": user.get('target_quality_l1'),
+        "scenario": user.get('scenario_type'),
+        "red_flags": update_data.get("red_flags_count", user.get('red_flags_count', 0)),
+        "sfi_index": update_data["sfi_index"],
+        "last_insight": update_data["last_insight"]
+    })
+    
+    feedback = analysis.get("feedback_to_client") or "Принято, твой Shadow Log сохранен."
+    await callback.message.answer(feedback)
+    await state.clear()
+    await callback.answer("Отправлено!")
+
+@client_router.callback_query(F.data == "edit_log")
+async def edit_log_handler(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.edit_text("Хорошо, давай попробуем еще раз. 🎙\nПришли исправленное сообщение или запиши новое аудио.")
+    # State remains or we can reset to waiting_for_log
+    from bot.states import ClientStates
+    await state.set_state(ClientStates.waiting_for_log)
