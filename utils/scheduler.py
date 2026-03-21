@@ -93,30 +93,33 @@ async def send_admin_evening_concentrate(bot: Bot):
 async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
     """Sends morning impulse to a specific user or all active users. Returns count of sent messages."""
     now = datetime.now(timezone.utc)
-    logger.info(f"🌅 [SCHEDULER] Starting send_morning_impulse. Manual trigger: {user is not None}")
+    logging.info(f"🌅 [SCHEDULER] Starting send_morning_impulse. Manual trigger: {user is not None}")
     
     if user:
         users = [user]
     else:
         users = await FirestoreDB.get_active_users()
         
-    logger.info(f"🌅 [SCHEDULER] Found {len(users)} active users for morning pulse.")
+    logging.info(f"🌅 [SCHEDULER] Found {len(users)} active users for morning pulse.")
     
     count = 0
+    last_text = None
     for u in users:
         u_id = u.get('tg_id')
         if not u_id: continue
         
-        logger.debug(f"🌅 [SCHEDULER] Processing user {u_id} ({u.get('full_name')})")
-        
-        start_date = u.get('sprint_start_date') or u.get('created_at')
-        if not start_date: continue
-        
-        if isinstance(start_date, str):
-            try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-            except: continue
+        logging.debug(f"🌅 [SCHEDULER] Processing user {u_id} ({u.get('full_name')})")
         
         try:
+            start_date = u.get('sprint_start_date') or u.get('created_at')
+            if not start_date: 
+                logging.warning(f"⚠️ [SCHEDULER] User {u_id} has no start date")
+                continue
+            
+            if isinstance(start_date, str):
+                try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                except: continue
+            
             day = (now - start_date).days + 1
             try:
                 task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
@@ -124,7 +127,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
                     task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
             except RuntimeError as re:
                 err_msg = f"⚠️ [GSheets Error] Could not fetch morning task: {re}"
-                logger.error(f"❌ {err_msg}")
+                logging.error(f"❌ {err_msg}")
                 # Notify all admins once and abort the entire mailing
                 for admin_id in ADMIN_IDS:
                     try: await bot.send_message(admin_id, err_msg)
@@ -146,6 +149,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
                 f"Ты можешь сдать отчет в любое время в течение дня по кнопке ниже или дождаться вечернего запроса."
             )
             
+            last_text = text
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             builder = InlineKeyboardBuilder()
             builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
@@ -158,6 +162,17 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
             count += 1
         except Exception as e:
             logger.error(f"❌ [SCHEDULER] Failed to process morning for {u_id}: {e}")
+            
+    summary = f"🌅 [SCHEDULER] Рассылка завершена. Отправлено: {count} чел."
+    if count > 0 and last_text:
+        # Extract the task text part for brevity or send full message?
+        # The user wants "текст отправленного сообщения", so I'll send the full text
+        summary += f"\n\n📋 {hbold('Текст сообщения:')}\n---\n{last_text}"
+        
+    for admin_id in ADMIN_IDS:
+        try: await bot.send_message(admin_id, summary)
+        except Exception as e:
+            logger.error(f"❌ Failed to send summary to admin {admin_id}: {e}")
             
     logger.info(f"🌅 [SCHEDULER] Finished. Total sent: {count}")
     return count
