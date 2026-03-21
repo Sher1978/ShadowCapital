@@ -515,6 +515,16 @@ async def admin_test_morning_handler(callback: types.CallbackQuery, bot: Bot):
     else:
         await callback.answer("❌ Ошибка: клиент не найден.")
 
+@admin_router.callback_query(F.data.startswith("test_evening_"))
+async def admin_test_evening_handler(callback: types.CallbackQuery, bot: Bot):
+    tg_id = int(callback.data.split("_")[-1])
+    user = await FirestoreDB.get_user(tg_id)
+    if user:
+        await request_evening_logs(bot, user)
+        await callback.answer("✅ Запрос вечернего лога отправлен!")
+    else:
+        await callback.answer("❌ Ошибка: клиент не найден.")
+
 @admin_router.callback_query(F.data.startswith("reject_user_"))
 async def reject_user_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
