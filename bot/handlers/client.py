@@ -413,6 +413,9 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     if not content:
         content = "Empty Log"
 
+    # Show processing status for text-only logs (voice already shows it)
+    status_msg = await message.answer("⌛️ Анализирую твой отчет...")
+
     # Analyze for sabotage
     from utils.analysis import analyze_sabotage
     analysis = await analyze_sabotage(
@@ -420,6 +423,10 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
         quality_name=user.get('target_quality_l1', "Unknown"),
         scenario_type=user.get('scenario_type', "N/A")
     )
+    
+    # Remove status message after analysis
+    try: await status_msg.delete()
+    except: pass
 
     log_data = {
         "content": content,

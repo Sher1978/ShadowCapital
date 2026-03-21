@@ -510,8 +510,10 @@ async def admin_test_morning_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
     user = await FirestoreDB.get_user(tg_id)
     if user:
+        await callback.answer("✅ Отправляю утренний импульс...")
         await send_morning_impulse(bot, user)
-        await callback.answer("✅ Утренний импульс отправлен!")
+        # We can update the message text to show success too
+        await callback.message.edit_text(callback.message.text + "\n\n✅ Утренний импульс отправлен!")
     else:
         await callback.answer("❌ Ошибка: клиент не найден.")
 
@@ -520,8 +522,9 @@ async def admin_test_evening_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
     user = await FirestoreDB.get_user(tg_id)
     if user:
+        await callback.answer("✅ Отправляю запрос вечернего лога...")
         await request_evening_logs(bot, user)
-        await callback.answer("✅ Запрос вечернего лога отправлен!")
+        await callback.message.edit_text(callback.message.text + "\n\n✅ Запрос вечернего лога отправлен!")
     else:
         await callback.answer("❌ Ошибка: клиент не найден.")
 
