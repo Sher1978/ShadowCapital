@@ -13,20 +13,32 @@ SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 def get_gsheets_client():
     """
     Returns a fresh gspread client using credentials.
-    Supports multiple possible locations for the credentials file.
+    Supports environment variable GOOGLE_CREDENTIALS (JSON string) or local file.
     """
+    # 1. Try environment variable first (for Cloud Run)
+    env_creds = os.getenv("GOOGLE_CREDENTIALS")
+    if env_creds:
+        try:
+            import json
+            info = json.loads(env_creds)
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(info, SCOPE)
+            return gspread.authorize(creds)
+        except Exception as e:
+            logging.error(f"Failed to authorize Google Sheets via env var: {e}")
+
+    # 2. Fallback to local files
     creds_paths = ["resources/google_credentials.json", "credentials.json"]
     creds_path = next((p for p in creds_paths if os.path.exists(p)), None)
     
     if not creds_path:
-        logging.error("Google credentials not found. Google Sheets integration disabled.")
+        logging.error("Google credentials not found (env GOOGLE_CREDENTIALS or local file).")
         return None
     
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, SCOPE)
         return gspread.authorize(creds)
     except Exception as e:
-        logging.error(f"Failed to authorize Google Sheets: {e}")
+        logging.error(f"Failed to authorize Google Sheets via file {creds_path}: {e}")
         return None
 
 
