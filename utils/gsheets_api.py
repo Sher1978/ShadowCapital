@@ -20,7 +20,15 @@ def get_gsheets_client():
     if env_creds:
         try:
             import json
-            info = json.loads(env_creds)
+            import base64
+            # Try to decode if it looks like base64
+            try:
+                decoded = base64.b64decode(env_creds).decode('utf-8')
+                info = json.loads(decoded)
+            except:
+                # If not base64, try raw JSON
+                info = json.loads(env_creds)
+                
             creds = ServiceAccountCredentials.from_json_keyfile_dict(info, SCOPE)
             return gspread.authorize(creds)
         except Exception as e:
