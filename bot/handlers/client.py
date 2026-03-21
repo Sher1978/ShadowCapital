@@ -134,10 +134,24 @@ async def morning_confirm_handler(callback: types.CallbackQuery):
     # Extract original text and append confirmation
     original_text = callback.message.text or callback.message.caption or ""
     
+    # Preserve the buttons (keeping only "Submit Log" if we want, or both)
+    # The user says "These buttons should not disappear"
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    # We can mark the first button as active/disabled or just keep it
+    builder.button(text="✅ Готов (зафиксировано)", callback_data="morning_already_confirmed")
+    builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
+    builder.adjust(1)
+
     await callback.message.edit_text(
-        f"{original_text}\n\n✅ {hbold('Принято! Твоя готовность зафиксирована. Действуй!')}"
+        f"{original_text}\n\n✅ {hbold('Принято! Твоя готовность зафиксирована. Действуй!')}",
+        reply_markup=builder.as_markup()
     )
     await callback.answer("Готовность подтверждена!")
+
+@client_router.callback_query(F.data == "morning_already_confirmed")
+async def morning_already_confirmed_handler(callback: types.CallbackQuery):
+    await callback.answer("Ты уже подтвердил готовность на сегодня! 🚀", show_alert=True)
 
     # Notify Admins
     from aiogram import Bot
@@ -302,7 +316,8 @@ async def shadow_log_prompt_handler(message: types.Message):
     await trigger_shadow_log_prompt(message)
 
 @client_router.callback_query(F.data == "start_early_log")
-async def start_early_log_callback(callback: types.CallbackQuery):
+@client_router.callback_query(F.data == "start_evening_log")
+async def start_log_callback(callback: types.CallbackQuery):
     user = await FirestoreDB.get_user(callback.from_user.id)
     if not user: 
         await callback.answer("Профиль не найден.")
