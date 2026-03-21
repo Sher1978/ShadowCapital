@@ -97,7 +97,10 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
 
     def _get_task():
         client = get_gsheets_client()
-        if not client: return None
+        if not client:
+            logging.error("❌ Google Sheets client failed to initialize (check credentials.json)")
+            raise RuntimeError("Google Sheets API client not initialized. Check credentials.")
+            
         try:
             sh = client.open_by_url(SPREADSHEET_URL)
             worksheet = sh.worksheet("CONTENT_TIMELINE")
@@ -107,7 +110,16 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
                     task = row.get(target_column)
                     return task if task and str(task).strip() else None
         except Exception as e:
-            logging.error(f"Error getting task from sheets: {e}")
+            err_msg = str(e)
+            logging.error(f"❌ Error getting task from sheets: {err_msg}")
+            # Identify specific API errors
+            if "API has not been used" in err_msg or "disabled" in err_msg.lower():
+                raise RuntimeError("Google Sheets API is DISABLED. Please enable it in Cloud Console.")
+            if "permission" in err_msg.lower():
+                raise RuntimeError("Permission denied for Spreadsheet. Check service account access (Editor).")
+            if "not found" in err_msg.lower() and "worksheet" in err_msg.lower():
+                raise RuntimeError("Worksheet 'CONTENT_TIMELINE' not found in the spreadsheet.")
+            raise RuntimeError(f"GSheets error: {err_msg}")
         return None
 
     return await asyncio.to_thread(_get_task)
@@ -119,7 +131,9 @@ async def get_evening_question_from_sheets(user_day: int, scenario: str):
     """
     def _get_questions():
         client = get_gsheets_client()
-        if not client: return None
+        if not client:
+            logging.error("❌ Google Sheets client failed to initialize (check credentials.json)")
+            raise RuntimeError("Google Sheets API client not initialized. Check credentials.")
         
         # 1. Determine week
         if 1 <= user_day <= 7: week = 1
@@ -164,7 +178,15 @@ async def get_evening_question_from_sheets(user_day: int, scenario: str):
             return "\n\n".join(questions) if questions else None
 
         except Exception as e:
-            logging.error(f"Error getting evening questions: {e}")
+            err_msg = str(e)
+            logging.error(f"❌ Error getting evening questions: {err_msg}")
+            if "API has not been used" in err_msg or "disabled" in err_msg.lower():
+                raise RuntimeError("Google Sheets API is DISABLED. Please enable it in Cloud Console.")
+            if "permission" in err_msg.lower():
+                raise RuntimeError("Permission denied for Spreadsheet. Check service account access (Editor).")
+            if "not found" in err_msg.lower() and "worksheet" in err_msg.lower():
+                raise RuntimeError("Worksheet 'EVENING_LOGS' not found in the spreadsheet.")
+            raise RuntimeError(f"GSheets evening error: {err_msg}")
         return None
 
     return await asyncio.to_thread(_get_questions)
@@ -175,7 +197,9 @@ async def delete_user_from_sheets(user_id: int):
     """
     def _delete():
         client = get_gsheets_client()
-        if not client: return
+        if not client:
+            logging.error("❌ Google Sheets client failed to initialize")
+            raise RuntimeError("Google Sheets client not initialized.")
         
         try:
             sh = client.open_by_url(SPREADSHEET_URL)
@@ -185,6 +209,10 @@ async def delete_user_from_sheets(user_id: int):
                 worksheet.delete_rows(cell.row)
                 logging.info(f"🗑 Deleted user {user_id} from Google Sheets.")
         except Exception as e:
-            logging.error(f"Error deleting user from sheets: {e}")
+            err_msg = str(e)
+            logging.error(f"❌ Error deleting user from sheets: {err_msg}")
+            if "API has not been used" in err_msg or "disabled" in err_msg.lower():
+                raise RuntimeError("Google Sheets API is DISABLED. Action required.")
+            raise RuntimeError(f"GSheets delete error: {err_msg}")
 
     await asyncio.to_thread(_delete)

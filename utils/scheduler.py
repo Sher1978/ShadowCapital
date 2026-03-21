@@ -118,9 +118,18 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
         
         try:
             day = (now - start_date).days + 1
-            task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
-            if not task_body:
-                task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
+            try:
+                task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
+                if not task_body:
+                    task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
+            except RuntimeError as re:
+                err_msg = f"⚠️ [GSheets Error] Could not fetch morning task: {re}"
+                logger.error(f"❌ {err_msg}")
+                # Notify all admins once and abort the entire mailing
+                for admin_id in ADMIN_IDS:
+                    try: await bot.send_message(admin_id, err_msg)
+                    except: pass
+                break # Abort the loop as requested
             
             import random
             greetings = [
@@ -176,8 +185,17 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
                 except: continue
                 
             day = (now - start_date).days + 1
-            questions_text = await get_evening_question_from_sheets(day, u.get('scenario_type') or "Sovereign")
-            
+            try:
+                questions_text = await get_evening_question_from_sheets(day, u.get('scenario_type') or "Sovereign")
+            except RuntimeError as re:
+                err_msg = f"⚠️ [GSheets Error] Could not fetch evening questions: {re}"
+                logger.error(f"❌ {err_msg}")
+                # Notify all admins once and abort
+                for admin_id in ADMIN_IDS:
+                    try: await bot.send_message(admin_id, err_msg)
+                    except: pass
+                break
+                
             if not questions_text:
                 questions_text = (
                     "Как сегодня проявилось твое теневое качество? Какое сопротивление ты почувствовал(а)?\n\n"
