@@ -93,58 +93,76 @@ async def send_admin_evening_concentrate(bot: Bot):
 async def send_morning_impulse(bot: Bot, user: dict = None):
     """Sends morning impulse to a specific user or all active users."""
     now = datetime.now(timezone.utc)
+    logger.info(f"🌅 [SCHEDULER] Starting send_morning_impulse. Manual trigger: {user is not None}")
     
     if user:
         users = [user]
     else:
         users = await FirestoreDB.get_active_users()
         
+    logger.info(f"🌅 [SCHEDULER] Found {len(users)} active users for morning pulse.")
+    
     for u in users:
+        u_id = u.get('tg_id')
+        logger.debug(f"🌅 [SCHEDULER] Processing user {u_id} ({u.get('full_name')})")
+        
         # Calculate day
         start_date = u.get('sprint_start_date') or u.get('created_at')
-        if not start_date: continue
+        if not start_date: 
+            logger.warning(f"⚠️ [SCHEDULER] User {u_id} has no start date, skipping.")
+            continue
         
         # Determine if start_date is already a datetime (Firestore) or needs conversion
         if isinstance(start_date, str):
-            try: start_date = datetime.fromisoformat(start_date)
-            except: continue
-        
-        day = (now - start_date).days + 1
-        
-        # Fetch from Sheets
-        task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
-        if not task_body:
-            task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
-        
-        import random
-        greetings = [
-            "🌅 Доброе утро! Сегодня идеальный день, чтобы стать еще сильнее.",
-            "☀️ С новым днем! Твой прогресс вдохновляет, продолжаем движение.",
-            "✨ Привет! Сегодня — еще один шаг к твоему идеальному качеству. Вперед!",
-            "🔥 Прекрасное утро, чтобы бросить вызов Хранителю и победить.",
-            "🌟 Доброе утро! Твоя энергия сегодня — ключ к новым вершинам."
-        ]
-        greeting = random.choice(greetings)
-        
-        text = (
-            f"{greeting}\n\n"
-            f"💎 {hbold(u.get('target_quality_l1'))}: Утренний Импульс (День {day})\n\n"
-            f"{task_body}\n\n"
-            f"Ты можешь сдать отчет в любое время в течение дня по кнопке ниже или дождаться вечернего запроса."
-        )
-        
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        builder = InlineKeyboardBuilder()
-        builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
-        builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
-        builder.adjust(1)
+            try: 
+                start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                logger.debug(f"🌅 [SCHEDULER] Parsed start_date string for {u_id}: {start_date}")
+            except Exception as e: 
+                logger.error(f"❌ [SCHEDULER] Failed to parse start_date for {u_id}: {e}")
+                continue
         
         try:
-            await bot.send_message(u.get('tg_id'), text, reply_markup=builder.as_markup())
+            day = (now - start_date).days + 1
+            logger.debug(f"🌅 [SCHEDULER] User {u_id} is on day {day}")
+            
+            # Fetch from Sheets
+            logger.debug(f"🌅 [SCHEDULER] Fetching task from Sheets for {u_id} (Scenario: {u.get('scenario_type')})")
+            task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
+            if not task_body:
+                logger.warning(f"⚠️ [SCHEDULER] No task found for day {day} in Sheets for {u_id}. Using fallback.")
+                task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
+            
+            import random
+            greetings = [
+                "🌅 Доброе утро! Сегодня идеальный день, чтобы стать еще сильнее.",
+                "☀️ С новым днем! Твой прогресс вдохновляет, продолжаем движение.",
+                "✨ Привет! Сегодня — еще один шаг к твоему идеальному качеству. Вперед!",
+                "🔥 Прекрасное утро, чтобы бросить вызов Хранителю и победить.",
+                "🌟 Доброе утро! Твоя энергия сегодня — ключ к новым вершинам."
+            ]
+            greeting = random.choice(greetings)
+            
+            text = (
+                f"{greeting}\n\n"
+                f"💎 {hbold(u.get('target_quality_l1'))}: Утренний Импульс (День {day})\n\n"
+                f"{task_body}\n\n"
+                f"Ты можешь сдать отчет в любое время в течение дня по кнопке ниже или дождаться вечернего запроса."
+            )
+            
+            from aiogram.utils.keyboard import InlineKeyboardBuilder
+            builder = InlineKeyboardBuilder()
+            builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
+            builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
+            builder.adjust(1)
+            
+            logger.info(f"📤 [SCHEDULER] Sending message to {u_id}...")
+            await bot.send_message(u_id, text, reply_markup=builder.as_markup())
             await FirestoreDB.update_user(u['id'], {"last_morning_sent": now})
-            logging.info(f"Morning impulse sent to {u.get('tg_id')}")
+            logger.info(f"✅ [SCHEDULER] Morning impulse sent to {u_id}")
         except Exception as e:
-            logging.error(f"Failed to send morning to {u.get('tg_id')}: {e}")
+            logger.error(f"❌ [SCHEDULER] Failed to process morning for {u_id}: {e}", exc_info=True)
+    
+    logger.info("🌅 [SCHEDULER] send_morning_impulse finished.")
 
 async def request_evening_logs(bot: Bot, user: dict = None):
     """Sends evening log request to a specific user or all active users."""

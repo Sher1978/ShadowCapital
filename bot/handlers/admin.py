@@ -6,7 +6,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hbold
 
-from config import ADMIN_IDS
+from config import ADMIN_IDS, is_admin
 from database.firebase_db import FirestoreDB
 from bot.states import AdminStates, AdminRegistration
 from bot.keyboards.builders import get_main_keyboard, get_navigation_keyboard, get_inline_back_button
@@ -15,11 +15,6 @@ from utils.gsheets_api import sync_user_to_sheets
 
 logger = logging.getLogger(__name__)
 admin_router = Router()
-
-def is_admin(user_id: int) -> bool:
-    res = user_id in ADMIN_IDS
-    logger.info(f"🛡 Admin Check for {user_id}: {res}")
-    return res
 
 
 @admin_router.message(Command("trigger_morning"))

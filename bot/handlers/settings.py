@@ -5,17 +5,12 @@ from aiogram.utils.markdown import hbold
 from database.firebase_db import FirestoreDB
 import re
 
-from config import ADMIN_IDS
+import logging
+from config import ADMIN_IDS, is_admin
+
+logger = logging.getLogger(__name__)
 
 settings_router = Router()
-
-from bot.states import SettingsState, ClientSettings
-from bot.keyboards.builders import get_main_keyboard, get_navigation_keyboard
-
-settings_router = Router()
-
-def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_IDS
 
 @settings_router.message(F.text == "⚙️ Настройки")
 @settings_router.message(F.text.contains("Настройки"))
@@ -122,24 +117,36 @@ async def process_client_edit_tz(callback: types.CallbackQuery):
 
 @settings_router.callback_query(F.data.startswith("trigger_"))
 async def trigger_manual_callback(callback: types.CallbackQuery):
-    if not is_admin(callback.from_user.id):
+    user_id = callback.from_user.id
+    logger.info(f"🖱 [ADMIN] Button click: {callback.data} by user {user_id}")
+    
+    if not is_admin(user_id):
+        logger.warning(f"🚫 [AUTH] Unauthorized attempt by {user_id}")
         await callback.answer("У вас нет прав администратора.", show_alert=True)
         return
         
     action = callback.data.replace("trigger_", "")
+    logger.info(f"⚡ [ADMIN] Manually triggering action: {action}")
+    
     from utils.scheduler import send_morning_impulse, request_evening_logs, send_group_weekly_report
     
-    if action == "morning":
-        await callback.message.answer("🚀 Запускаю рассылку утренних импульсов...")
-        await send_morning_impulse(callback.bot)
-    elif action == "evening":
-        await callback.message.answer("📝 Запускаю сбор вечерних логов...")
-        await request_evening_logs(callback.bot)
-    elif action == "weekly":
-        await callback.message.answer("📊 Запускаю рассылку итогов недели...")
-        await send_group_weekly_report(callback.bot)
+    try:
+        if action == "morning":
+            await callback.message.answer("🚀 Запускаю рассылку утренних импульсов...")
+            await send_morning_impulse(callback.bot)
+        elif action == "evening":
+            await callback.message.answer("📝 Запускаю сбор вечерних логов...")
+            await request_evening_logs(callback.bot)
+        elif action == "weekly":
+            await callback.message.answer("📊 Запускаю рассылку итогов недели...")
+            await send_group_weekly_report(callback.bot)
         
-    await callback.answer("Запущено!")
+        await callback.answer("Запущено!")
+        logger.info(f"✅ [ADMIN] Action {action} completed successfully.")
+    except Exception as e:
+        logger.error(f"❌ [ADMIN] Error triggering {action}: {e}", exc_info=True)
+        await callback.message.answer(f"❌ Ошибка при запуске {action}: {e}")
+        await callback.answer("Ошибка!")
 
 @settings_router.callback_query(F.data.startswith("set_time_"))
 async def set_time_callback_handler(callback: types.CallbackQuery, state: FSMContext):
