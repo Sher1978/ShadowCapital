@@ -24,4 +24,10 @@ def is_admin(user_id: int) -> bool:
 # Google Sheets URL for daily tasks
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1vGvlttP6SqfSdBSiD8Z4pn3iSfBSthtus5H54MDnsP8/edit?usp=sharing"
 
-# Validation moved to startup logic in main.py to allow health server to start first
+# Menu keywords to distinguish logs from navigation
+MENU_KEYWORDS = {
+    "Моя цель", "Shadow Log", "SOS", "Настройки", 
+    "Как это работает", "Клиенты", "Аналитика", "Заявки", 
+    "Админ Панель", "Спринты", "Активировать Спринт", "Мои результаты",
+    "Добавить клиента", "Назад", "Отмена", "Start", "Меню", "🏠 В меню"
+}

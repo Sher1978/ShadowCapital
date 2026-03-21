@@ -10,7 +10,7 @@ from utils.transcription import transcribe_voice
 from utils.analysis import analyze_sabotage
 from utils.alerts import send_red_alert
 from utils.gsheets_api import sync_user_to_sheets
-from config import ADMIN_IDS
+from config import ADMIN_IDS, MENU_KEYWORDS
 from datetime import datetime, timezone
 
 client_router = Router()
@@ -350,7 +350,7 @@ async def re_submit_log_callback(callback: types.CallbackQuery):
     await trigger_shadow_log_prompt(callback.message)
     await callback.answer()
 
-@client_router.message(F.text | F.voice | F.audio)
+@client_router.message((F.text | F.voice | F.audio) & ~F.text.in_(MENU_KEYWORDS))
 async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     user = await FirestoreDB.get_user(message.from_user.id)
     

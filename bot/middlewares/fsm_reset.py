@@ -3,12 +3,7 @@ from aiogram import BaseMiddleware
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-MENU_KEYWORDS = {
-    "Моя цель", "Shadow Log", "SOS", "Настройки", 
-    "Как это работает", "Клиенты", "Аналитика", "Заявки", 
-    "Админ Панель", "Спринты", "Активировать Спринт", "Мои результаты",
-    "Добавить клиента", "Назад", "Отмена", "Start", "Меню", "🏠 В меню"
-}
+from config import MENU_KEYWORDS
 
 import logging
 logger = logging.getLogger(__name__)
