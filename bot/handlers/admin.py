@@ -231,6 +231,8 @@ async def pending_list_handler(message: types.Message, state: FSMContext):
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Requests' by user {user_id}")
         return
+    
+    logger.info(f"🔍 [ADMIN] 'Pending Requests' handler triggered by {user_id}")
         
     # Extra safety: Clear state if it wasn't cleared by middleware
     cur_state = await state.get_state()
@@ -304,6 +306,8 @@ async def active_sprints_handler(message: types.Message, state: FSMContext):
     if not is_admin(user_id):
         logger.warning(f"🚫 Unauthorized attempt to access 'Clients' by user {user_id}")
         return
+    
+    logger.info(f"🔍 [ADMIN] 'Active Sprints' handler triggered by {user_id}")
         
     # Extra safety: Clear state if it wasn't cleared by middleware
     cur_state = await state.get_state()
@@ -361,7 +365,10 @@ async def show_active_page(message: types.Message, page: int = 0):
 @admin_router.message(F.text.contains("Аналитика"), StateFilter("*"))
 async def admin_analytics_handler(message: types.Message, state: FSMContext):
     if not is_admin(message.from_user.id):
+        logger.warning(f"🚫 Unauthorized attempt to access 'Analytics' by user {message.from_user.id}")
         return
+    
+    logger.info(f"🔍 [ADMIN] 'Analytics' handler triggered by {message.from_user.id}")
     
     # Safety clear
     await state.clear()
@@ -544,7 +551,10 @@ async def approve_user_start_registration(callback: types.CallbackQuery, state: 
 async def start_add_client(message: types.Message, state: FSMContext):
     logger.info(f"🖱 Button 'Add Client' clicked by {message.from_user.id}")
     if not is_admin(message.from_user.id):
+        logger.warning(f"🚫 Unauthorized attempt to use 'Add Client' by user {message.from_user.id}")
         return
+    
+    logger.info(f"🔍 [ADMIN] 'Add Client' flow started by {message.from_user.id}")
     
     await state.clear() # Clear any previous state before starting new registration
     
@@ -1072,4 +1082,13 @@ async def execute_delete_client_handler(callback: types.CallbackQuery, bot: Bot)
     # 4. Optional: Notify client? (Only if bot is not blocked)
     try:
         await bot.send_message(tg_id, "ℹ️ Твой доступ к Shadow Sprint был аннулирован. Все данные удалены.")
-    except: pass
+    except:
+        pass
+
+@admin_router.message(StateFilter("*"))
+async def admin_catch_all(message: types.Message):
+    if not is_admin(message.from_user.id):
+        return
+        
+    logger.info(f"❓ [ADMIN] Unmatched message from {message.from_user.id}: '{message.text}'")
+

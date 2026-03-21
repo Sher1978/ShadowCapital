@@ -6,7 +6,7 @@ from aiohttp import web
 
 # 0. Immediate Logging Setup
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     stream=sys.stdout
 )
