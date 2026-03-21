@@ -355,10 +355,12 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     user = await FirestoreDB.get_user(message.from_user.id)
     
     if not user:
-        return # Ignore unknown users
+        # User not even in DB - invite to start
+        return
         
     # Allow admins to test logs, or just clients
     if user.get('role') not in ["client", "admin"]:
+        await message.answer("⚠️ Твой аккаунт не активирован для сдачи отчетов. Обратись к администратору для активации Спринта.")
         return
 
     is_voice = message.voice is not None or message.audio is not None
