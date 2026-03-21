@@ -10,6 +10,8 @@ from utils.analysis import generate_weekly_briefing, generate_group_weekly_summa
 from utils.gsheets_api import get_daily_task_from_sheets, get_evening_question_from_sheets
 from aiogram.utils.markdown import hbold
 
+logger = logging.getLogger(__name__)
+
 _scheduler = None
 
 async def send_admin_morning_pulse(bot: Bot):
@@ -93,14 +95,14 @@ async def send_admin_evening_concentrate(bot: Bot):
 async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
     """Sends morning impulse to a specific user or all active users. Returns count of sent messages."""
     now = datetime.now(timezone.utc)
-    logging.info(f"🌅 [SCHEDULER] Starting send_morning_impulse. Manual trigger: {user is not None}")
+    logger.info(f"🌅 [SCHEDULER] Starting send_morning_impulse. Manual trigger: {user is not None}")
     
     if user:
         users = [user]
     else:
         users = await FirestoreDB.get_active_users()
         
-    logging.info(f"🌅 [SCHEDULER] Found {len(users)} active users for morning pulse.")
+    logger.info(f"🌅 [SCHEDULER] Found {len(users)} active users for morning pulse.")
     
     count = 0
     last_text = None
@@ -108,12 +110,12 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
         u_id = u.get('tg_id')
         if not u_id: continue
         
-        logging.debug(f"🌅 [SCHEDULER] Processing user {u_id} ({u.get('full_name')})")
+        logger.debug(f"🌅 [SCHEDULER] Processing user {u_id} ({u.get('full_name')})")
         
         try:
             start_date = u.get('sprint_start_date') or u.get('created_at')
             if not start_date: 
-                logging.warning(f"⚠️ [SCHEDULER] User {u_id} has no start date")
+                logger.warning(f"⚠️ [SCHEDULER] User {u_id} has no start date")
                 continue
             
             if isinstance(start_date, str):
@@ -127,7 +129,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
                     task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
             except RuntimeError as re:
                 err_msg = f"⚠️ [GSheets Error] Could not fetch morning task: {re}"
-                logging.error(f"❌ {err_msg}")
+                logger.error(f"❌ {err_msg}")
                 # Notify all admins once and abort the entire mailing
                 for admin_id in ADMIN_IDS:
                     try: await bot.send_message(admin_id, err_msg)
