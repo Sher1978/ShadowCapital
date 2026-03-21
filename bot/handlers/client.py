@@ -362,18 +362,30 @@ async def log_handler(message: types.Message, bot: Bot):
     content = message.text
     
     if is_voice:
-        # We have a voice/audio message
-        file_id = message.voice.file_id if message.voice else message.audio.file_id
-        await message.answer("🔊 Обрабатываю твое голосовое сообщение...")
-        
-        # Download file
-        file = await bot.get_file(file_id)
-        perm_path = f"media/audio/{file_id}.ogg"
-        await bot.download_file(file.file_path, perm_path)
-        
-        # Transcribe
-        transcript = await transcribe_voice(perm_path)
-        content = transcript
+        try:
+            # We have a voice/audio message
+            file_id = message.voice.file_id if message.voice else message.audio.file_id
+            await message.answer("🔊 Обрабатываю твое голосовое сообщение...")
+            
+            # Download file to /tmp (Cloud Run only allows writes to /tmp)
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            perm_path = os.path.join(temp_dir, f"{file_id}.ogg")
+            
+            file = await bot.get_file(file_id)
+            await bot.download_file(file.file_path, perm_path)
+            
+            # Transcribe
+            transcript = await transcribe_voice(perm_path)
+            content = transcript
+            
+            # Cleanup
+            if os.path.exists(perm_path):
+                os.remove(perm_path)
+        except Exception as e:
+            logging.error(f"❌ Error processing voice message: {e}", exc_info=True)
+            await message.answer("⚠️ Не удалось обработать голосовое сообщение. Пожалуйста, попробуй отправить текст.")
+            return
     
     if not content:
         content = "Empty Log"
@@ -389,7 +401,7 @@ async def log_handler(message: types.Message, bot: Bot):
         "content": content,
         "is_voice": is_voice,
         "file_id": file_id,
-        "local_file_path": f"media/audio/{file_id}.ogg" if is_voice else None,
+        "local_file_path": None,
         "is_sabotage": analysis.get("is_sabotage", False),
         "sfi_score": analysis.get("sfi_score", 0.5),
         "feedback_to_client": analysis.get("feedback_to_client", ""),
