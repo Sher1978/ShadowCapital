@@ -15,6 +15,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # List of Telegram IDs that have admin rights
 ADMIN_IDS = [int(id.strip()) for id in os.getenv("ADMIN_IDS", "").split(",") if id.strip()]
+# Permanent fallback for Ihor Sher (Project Owner)
+if 5590852305 not in ADMIN_IDS:
+    ADMIN_IDS.append(5590852305)
 
 def is_admin(user_id: int) -> bool:
     res = user_id in ADMIN_IDS
@@ -26,8 +29,9 @@ GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1vGvlttP6SqfSdBSiD8Z4
 
 # Menu keywords to distinguish logs from navigation
 MENU_KEYWORDS = {
-    "Моя цель", "Shadow Log", "SOS", "Настройки", 
-    "Как это работает", "Клиенты", "Аналитика", "Заявки", 
-    "Админ Панель", "Спринты", "Активировать Спринт", "Мои результаты",
-    "Добавить клиента", "Назад", "Отмена", "Start", "Меню", "🏠 В меню"
+    "🎯 Моя цель", "📝 Shadow Log", "🆘 SOS", "⚙️ Настройки", 
+    "Как это работает", "👥 Клиенты", "📊 Аналитика", "⌛️ Заявки", 
+    "Админ Панель", "🚀 Спринты", "🚀 Активировать Спринт", "📈 Мои результаты",
+    "➕ Добавить клиента", "⬅️ Назад", "❌ Отмена", "Start", "Меню", "🏠 В меню",
+    "Настройки", "Клиенты", "Аналитика", "Заявки" # Fallbacks without emojis
 }
