@@ -728,7 +728,7 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
         "scenario_type": scenario_type,
         "target_quality_l1": data['quality_name'],
         "status": "active",
-        "sfi_index": 1.0,
+        "sfi_index": 0.5, # Start with neutral friction (Yellow)
         "timezone": data.get('timezone', 'UTC+3'),
         "sprint_start_date": datetime.now(timezone.utc)
     }
