@@ -42,7 +42,7 @@ async def admin_settings_handler(message: types.Message):
     builder.button(text="📊 Воскресенье", callback_data="set_time_sunday")
     
     builder.button(text="🚀 Запустить Утро", callback_data="trigger_morning")
-    builder.button(text="📝 Запросить Логи", callback_data="trigger_evening")
+    builder.button(text="📝 Запросить Отчеты", callback_data="trigger_evening")
     builder.button(text="📊 Итоги Недели", callback_data="trigger_weekly")
         
     builder.adjust(2)
@@ -138,9 +138,9 @@ async def trigger_manual_callback(callback: types.CallbackQuery):
             count = await send_morning_impulse(callback.bot)
             await callback.message.answer(f"✅ Рассылка импульсов завершена. Отправлено: {count} чел.")
         elif action == "evening":
-            await callback.message.answer("📝 Запускаю сбор вечерних логов...")
+            await callback.message.answer("📝 Запускаю сбор вечерних отчетов...")
             count = await request_evening_logs(callback.bot)
-            await callback.message.answer(f"✅ Сбор логов запущен. Отправлено запросов: {count} чел.")
+            await callback.message.answer(f"✅ Сбор отчетов запущен. Отправлено запросов: {count} чел.")
         elif action == "weekly":
             await callback.message.answer("📊 Запускаю рассылку итогов недели...")
             await send_group_weekly_report(callback.bot)

@@ -77,11 +77,11 @@ async def trigger_evening_handler(message: types.Message, bot: Bot):
             return
 
     if target_user:
-        await message.answer(f"🌙 Запрашиваю вечерний лог у {target_user.get('full_name')}...")
+        await message.answer(f"🌙 Запрашиваю вечерний отчет у {target_user.get('full_name')}...")
         await request_evening_logs(bot, target_user)
         await message.answer("✅ Запрос отправлен.")
     else:
-        await message.answer("⚠️ Запрашиваю вечерние логи у ВСЕХ активных клиентов...")
+        await message.answer("⚠️ Запрашиваю вечерние отчеты у ВСЕХ активных клиентов...")
         await request_evening_logs(bot)
         await message.answer("✅ Все запросы отправлены.")
 

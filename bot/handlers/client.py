@@ -19,6 +19,39 @@ client_router = Router()
 async def client_back_to_menu(message: types.Message):
     await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=False))
 
+async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: dict):
+    """Sends a detailed client report to all administrators."""
+    from datetime import datetime
+    now = datetime.now()
+    
+    # Calculate sprint day
+    start_date = user.get('sprint_start_date')
+    if start_date:
+        if isinstance(start_date, (datetime,)): pass
+        else: # Handle iso string if needed
+             try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+             except: start_date = now
+        day = (now.date() - start_date.date()).days + 1
+    else:
+        day = "N/A"
+
+    admin_msg = (
+        f"📩 {hbold('НОВЫЙ ОТЧЕТ КЛИЕНТА')}\n\n"
+        f"👤 {hbold('Имя:')} {user.get('full_name')}\n"
+        f"📅 {hbold('Дата:')} {now.strftime('%d.%m.%Y')}\n"
+        f"⏰ {hbold('Время:')} {now.strftime('%H:%M')}\n"
+        f"🚀 {hbold('День программы:')} {day}\n\n"
+        f"📝 {hbold('Текст отчета:')}\n{hitalic(content)}\n\n"
+        f"🤖 {hbold('Ответ бота (Scan):')}\n{analysis.get('feedback_to_client', 'Нет ответа')}\n\n"
+        f"📉 {hbold('SFI Score:')} {analysis.get('sfi_score', 'N/A')}"
+    )
+
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, admin_msg)
+        except Exception as e:
+            logging.error(f"Failed to notify admin {admin_id} of report: {e}")
+
 @client_router.message(CommandStart())
 async def command_start_handler(message: types.Message) -> None:
     is_admin = message.from_user.id in ADMIN_IDS
@@ -286,19 +319,20 @@ async def delete_my_data_handler(message: types.Message):
 async def trigger_shadow_log_prompt(message: types.Message):
     """Refactored helper to show the report prompt."""
     text = (
-        f"{hbold('📝 Твой Shadow Log')}\n\n"
-        "Это пространство для твоей честности. Расскажи, как прошел твой день в контексте Спринта:\n"
-        "• Как проявилось твое новое качество?\n"
-        "• Столкнулся ли ты с сопротивлением?\n"
-        "• Какие инсайты или 'тени' ты заметил?\n\n"
-        f"{hitalic('Пришли текстовое или голосовое сообщение прямо сейчас.')} Бот проанализирует его на предмет саботажа и даст обратную связь."
+        f"{hbold('📝 ВЕЧЕРНИЙ ОТЧЕТ')}\n\n"
+        "Это пространство для твоей честности. Вспомни сегодняшний день:\n\n"
+        "❓ КАК СЕГОДНЯ ПРОЯВИЛОСЬ ТВОЕ ТЕНЕВОЕ КАЧЕСТВО?\n\n"
+        "❓ СТОЛКНУЛСЯ ЛИ ТЫ С СОПРОТИВЛЕНИЕМ?\n\n"
+        "❓ КАКИЕ ИНСАЙТЫ ИЛИ 'ТЕНИ' ТЫ ЗАМЕТИЛ?\n\n"
+        f"{hitalic('Пришли текстовое или голосовое сообщение прямо сейчас.')}\n\n"
+        "Бот проанализирует его на предмет саботажа и даст обратную связь."
     )
     from aiogram.utils.keyboard import ReplyKeyboardBuilder
     builder = ReplyKeyboardBuilder()
     builder.button(text="🏠 В меню")
     await message.answer(text, reply_markup=builder.as_markup(resize_keyboard=True))
 
-@client_router.message(F.text == "📝 Shadow Log")
+@client_router.message(F.text == "📝 Вечерний Отчет")
 async def shadow_log_prompt_handler(message: types.Message):
     user = await FirestoreDB.get_user(message.from_user.id)
     if not user: return
@@ -490,8 +524,11 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
         "last_insight": update_data["last_insight"]
     })
         
+    # Notify Admin
+    await notify_admin_of_report(bot, user, content, analysis)
+        
     # Send AI auditor feedback back to user
-    feedback = analysis.get("feedback_to_client") or "Принято, твой Shadow Log сохранен."
+    feedback = analysis.get("feedback_to_client") or "Принято, твой Вечерний Отчет сохранен."
     await message.answer(feedback)
 
 @client_router.callback_query(F.data == "confirm_log")
@@ -563,7 +600,10 @@ async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, 
         "last_insight": update_data["last_insight"]
     })
     
-    feedback = analysis.get("feedback_to_client") or "Принято, твой Shadow Log сохранен."
+    # Notify Admin
+    await notify_admin_of_report(bot, user, content, analysis)
+
+    feedback = analysis.get("feedback_to_client") or "Принято, твой Вечерний Отчет сохранен."
     await callback.message.answer(feedback)
     await state.clear()
     await callback.answer("Отправлено!")

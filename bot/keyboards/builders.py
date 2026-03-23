@@ -21,7 +21,7 @@ def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
         return builder.as_markup(resize_keyboard=True)
 
     builder.button(text="🎯 Моя цель")
-    builder.button(text="📝 Shadow Log")
+    builder.button(text="📝 Вечерний Отчет")
     builder.button(text="📈 Мои результаты")
     builder.button(text="🆘 SOS")
     builder.button(text="⚙️ Настройки")
@@ -56,7 +56,7 @@ def get_day_change_action_keyboard(client_id: str):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     builder.button(text="☀️ Утренний Импульс", callback_data=f"send_now_morning_{client_id}")
-    builder.button(text="🌙 Вечерний Лог", callback_data=f"send_now_evening_{client_id}")
+    builder.button(text="🌙 Вечерний Отчет", callback_data=f"send_now_evening_{client_id}")
     builder.button(text="🏠 В меню", callback_data="back_to_main_menu")
     builder.adjust(1)
     return builder.as_markup()

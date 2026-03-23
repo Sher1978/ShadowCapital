@@ -216,17 +216,19 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
                 
             if not questions_text:
                 questions_text = (
-                    "Как сегодня проявилось твое теневое качество? Какое сопротивление ты почувствовал(а)?\n\n"
-                    "Пришли текст или запиши голосовое сообщение."
+                    "💡 Вспомни сегодняшний день:\n\n"
+                    "❓ КАК СЕГОДНЯ ПРОЯВИЛОСЬ ТВОЕ ТЕНЕВОЕ КАЧЕСТВО?\n\n"
+                    "❓ КАКОЕ СОПРОТИВЛЕНИЕ ТЫ ПОЧУВСТВОВАЛ(А)?\n\n"
+                    "🎤 Пришли текст или запиши голосовое сообщение."
                 )
             
             text = (
-                f"🌙 {hbold('Время для вечернего Shadow Log.')} (День {day})\n\n"
+                f"🌙 {hbold('Пришло время для Вечернего Отчета.')} (День {day})\n\n"
                 f"{questions_text}"
             )
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             builder = InlineKeyboardBuilder()
-            builder.button(text="📝 Заполнить лог", callback_data="start_evening_log")
+            builder.button(text="📝 Заполнить отчет", callback_data="start_evening_log")
             builder.adjust(1)
             
             await bot.send_message(u_id, text, reply_markup=builder.as_markup())
