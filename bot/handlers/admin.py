@@ -398,12 +398,23 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
         
     # Calculate Sprint Day
     sprint_day = "N/A"
-    start_date = user.get('sprint_start_date')
+    start_date = user.get('sprint_start_date') or user.get('created_at')
+    
     if start_date:
-        if isinstance(start_date, str):
-             start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-        delta = datetime.now(timezone.utc) - start_date
-        sprint_day = delta.days + 1
+        try:
+            if isinstance(start_date, str):
+                 # Handle potential 'Z' or other ISO formats
+                 start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            
+            # Ensure start_date is aware before comparison with now(utc)
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+            
+            delta = datetime.now(timezone.utc) - start_date
+            sprint_day = max(1, delta.days + 1)
+        except Exception as e:
+            logger.error(f"Error calculating sprint day for {tg_id}: {e}")
+            sprint_day = "Error"
 
     # Friction Level Logic (SFI: 0.1 goal, 1.0 critical)
     friction = "🟢 GREEN"
@@ -418,9 +429,9 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     builder.button(text="✉️ Написать клиенту", callback_data=f"ai_reply_{tg_id}")
-    builder.button(text="📜 Архив логов", callback_data=f"view_logs_{tg_id}")
+    builder.button(text="📜 Архив отчетов", callback_data=f"view_logs_{tg_id}")
     builder.button(text="☀️ Утренний Импульс", callback_data=f"test_morning_{tg_id}")
-    builder.button(text="🌙 Вечерний Лог", callback_data=f"test_evening_{tg_id}")
+    builder.button(text="🌙 Вечерний Отчет", callback_data=f"test_evening_{tg_id}")
     builder.button(text="⚙️ Редактировать профиль", callback_data=f"edit_profile_{tg_id}")
     builder.button(text="🗑 Удалить клиента", callback_data=f"confirm_delete_{tg_id}")
     builder.button(text="⬅️ К списку", callback_data="active_page_0")

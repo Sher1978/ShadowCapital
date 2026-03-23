@@ -20,26 +20,29 @@ async def client_back_to_menu(message: types.Message):
     await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=False))
 
 async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: dict):
-    """Sends a detailed client report to all administrators."""
-    from datetime import datetime
-    now = datetime.now()
+    """Sends a detailed client report to all administrators in Vietnam (UTC+7) time."""
+    from utils.timezone_utils import get_now_in_tz, adjust_to_tz
     
-    # Calculate sprint day
-    start_date = user.get('sprint_start_date')
+    # User-requested default: Vietnam (UTC+7)
+    now_vn = get_now_in_tz("UTC+7")
+    
+    # Calculate sprint day using Vietnam time for consistency
+    start_date = user.get('sprint_start_date') or user.get('created_at')
+    day = "N/A"
     if start_date:
-        if isinstance(start_date, (datetime,)): pass
-        else: # Handle iso string if needed
-             try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-             except: start_date = now
-        day = (now.date() - start_date.date()).days + 1
-    else:
-        day = "N/A"
+        try:
+            # Adjust start_date to VN time before comparing
+            start_date_vn = adjust_to_tz(start_date, "UTC+7")
+            day = (now_vn.date() - start_date_vn.date()).days + 1
+            day = max(1, day)
+        except:
+            day = "Error"
 
     admin_msg = (
         f"📩 {hbold('НОВЫЙ ОТЧЕТ КЛИЕНТА')}\n\n"
         f"👤 {hbold('Имя:')} {user.get('full_name')}\n"
-        f"📅 {hbold('Дата:')} {now.strftime('%d.%m.%Y')}\n"
-        f"⏰ {hbold('Время:')} {now.strftime('%H:%M')}\n"
+        f"📅 {hbold('Дата:')} {now_vn.strftime('%d.%m.%Y')}\n"
+        f"⏰ {hbold('Время:')} {now_vn.strftime('%H:%M')} (VN)\n"
         f"🚀 {hbold('День программы:')} {day}\n\n"
         f"📝 {hbold('Текст отчета:')}\n{hitalic(content)}\n\n"
         f"🤖 {hbold('Ответ бота (Scan):')}\n{analysis.get('feedback_to_client', 'Нет ответа')}\n\n"
@@ -217,8 +220,8 @@ async def morning_already_confirmed_handler(callback: types.CallbackQuery):
 async def how_it_works_handler(message: types.Message) -> None:
     text = (
         f"{hbold('Как проходит Shadow Sprint:')}\n\n"
-        f"1. {hbold('Утренний Импульс (09:00):')} Ты получаешь задание на день. Это микро-действие для интеграции твоего нового качества.\n"
-        f"2. {hbold('Вечерний Shadow Log (20:00):')} Ты присылаешь отчет (текст или голос). Рассказываешь, как проявилось качество и какое было сопротивление.\n"
+        f"1. {hbold('Утренний Импульс:')} Ты получаешь задание на день. Это микро-действие для интеграции твоего нового качества.\n"
+        f"2. {hbold('Вечерний Отчет:')} Ты присылаешь ответ (текст или голос). Рассказываешь, как проявилось качество и какое было сопротивление.\n"
         f"3. {hbold('Обход Хранителя:')} Мы действуем незаметно, чтобы твоя психика не блокировала изменения.\n\n"
         f"Твоя задача — быть честным в отчетах. ИИ проанализирует их и даст сигнал куратору, если заметит саботаж."
     )

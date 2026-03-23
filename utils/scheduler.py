@@ -157,6 +157,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
             builder = InlineKeyboardBuilder()
             builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
             builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
+            builder.button(text="⚙️ Изменить время доставки", callback_data="edit_delivery_times")
             builder.adjust(1)
             
             await bot.send_message(u_id, text, reply_markup=builder.as_markup())
@@ -229,6 +230,7 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             builder = InlineKeyboardBuilder()
             builder.button(text="📝 Заполнить отчет", callback_data="start_evening_log")
+            builder.button(text="⚙️ Изменить время доставки", callback_data="edit_delivery_times")
             builder.adjust(1)
             
             await bot.send_message(u_id, text, reply_markup=builder.as_markup())

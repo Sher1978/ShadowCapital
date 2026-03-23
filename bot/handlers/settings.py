@@ -68,6 +68,7 @@ async def client_settings_handler(message: types.Message):
     builder = InlineKeyboardBuilder()
     builder.button(text="✏️ Изменить Имя", callback_data="client_edit_name")
     builder.button(text="🌍 Изменить Часовой Пояс", callback_data="client_edit_tz")
+    builder.button(text="⚙️ Настроить время доставки", callback_data="edit_delivery_times")
     builder.adjust(1)
     
     await message.answer(text, reply_markup=builder.as_markup())
@@ -109,11 +110,75 @@ async def client_edit_tz_start(callback: types.CallbackQuery, state: FSMContext)
     await callback.answer()
 
 @settings_router.callback_query(F.data.startswith("client_save_tz_"))
-async def process_client_edit_tz(callback: types.CallbackQuery):
+async def process_client_edit_tz(callback: types.CallbackQuery, state: FSMContext):
     new_tz = callback.data.replace("client_save_tz_", "")
     await FirestoreDB.update_user(callback.from_user.id, {"timezone": new_tz})
-    await callback.message.edit_text(f"✅ Часовой пояс обновлен на: {hbold(new_tz)}")
+    
+    current_state = await state.get_state()
+    if current_state == ClientSettings.waiting_for_edit_timezone:
+        # We are in the "Personalized Delivery" flow
+        await callback.message.edit_text(f"✅ Часовой пояс {hbold(new_tz)} сохранен.\n\nТеперь введите желаемое время для {hbold('Утреннего Импульса')} в формате ЧЧ:ММ (например, 08:00):")
+        await state.set_state(ClientSettings.waiting_for_morning_time)
+    else:
+        # Normal profile edit
+        await callback.message.edit_text(f"✅ Часовой пояс обновлен на: {hbold(new_tz)}")
+        await state.clear()
+        
     await callback.answer("Сохранено!")
+
+@settings_router.callback_query(F.data == "edit_delivery_times")
+async def client_edit_delivery_start(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(ClientSettings.waiting_for_edit_timezone)
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    # Prioritize popular offsets, include UTC+7 (Vietnam)
+    offsets = ["UTC+2", "UTC+3", "UTC+4", "UTC+5", "UTC+7", "UTC+8", "UTC+9"]
+    for off in offsets:
+        builder.button(text=off, callback_data=f"client_save_tz_{off}")
+    builder.adjust(3)
+    
+    await callback.message.answer(
+        "⚙️ {hbold('Настройка персонального времени доставки')}\n\n"
+        "Шаг 1: Выберите ваш часовой пояс:",
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
+
+@settings_router.message(ClientSettings.waiting_for_morning_time)
+async def process_client_morning_time(message: types.Message, state: FSMContext):
+    time_str = message.text.strip()
+    if not re.match(r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", time_str):
+        await message.answer("❌ Неверный формат. Введите время как ЧЧ:ММ (например, 08:30):")
+        return
+
+    await state.update_data(morning_time=time_str)
+    await message.answer(f"✅ Утреннее время {hbold(time_str)} принято.\n\nШаг 3: Введите время для {hbold('Вечернего Отчета')} (например, 21:00):")
+    await state.set_state(ClientSettings.waiting_for_evening_time)
+
+@settings_router.message(ClientSettings.waiting_for_evening_time)
+async def process_client_evening_time(message: types.Message, state: FSMContext):
+    time_str = message.text.strip()
+    if not re.match(r"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", time_str):
+        await message.answer("❌ Неверный формат. Введите время как ЧЧ:ММ (например, 22:00):")
+        return
+
+    data = await state.get_data()
+    morning_time = data.get('morning_time')
+    
+    await FirestoreDB.update_user(message.from_user.id, {
+        "morning_time": morning_time,
+        "evening_time": time_str
+    })
+    
+    await state.clear()
+    await message.answer(
+        f"🎉 {hbold('Настройки успешно сохранены!')}\n\n"
+        f"🌅 Утренний импульс: {hbold(morning_time)}\n"
+        f"🌙 Вечерний отчет: {hbold(time_str)}\n\n"
+        f"Система будет присылать задания и запросы по твоему местному времени.",
+        reply_markup=get_main_keyboard(is_admin=False)
+    )
 
 # --- Global Admin Settings Handlers ---
 

@@ -25,6 +25,8 @@ class ClientStates(StatesGroup):
 class ClientSettings(StatesGroup):
     waiting_for_edit_name = State()
     waiting_for_edit_timezone = State()
+    waiting_for_morning_time = State()
+    waiting_for_evening_time = State()
 
 class SettingsState(StatesGroup):
     waiting_for_time = State()
