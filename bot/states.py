@@ -17,6 +17,7 @@ class AdminStates(StatesGroup):
     waiting_for_edit_scenario_confirm = State()
     waiting_for_edit_day = State()
     waiting_for_edit_day_confirm = State()
+    waiting_for_admin_custom_report = State()
 
 class ClientStates(StatesGroup):
     waiting_for_log = State()

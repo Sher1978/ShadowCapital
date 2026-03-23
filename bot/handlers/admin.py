@@ -1088,6 +1088,130 @@ async def execute_delete_client_handler(callback: types.CallbackQuery, bot: Bot)
     except:
         pass
 
+# --- Report Review Handlers ---
+
+@admin_router.callback_query(F.data.startswith("approve_ai_report:"))
+async def approve_ai_report_handler(callback: types.CallbackQuery, bot: Bot):
+    parts = callback.data.split(":")
+    user_id = parts[1]
+    log_id = parts[2]
+    
+    user = await FirestoreDB.get_user(user_id) # user_id is the document ID here from the callback
+    # Wait, the callback uses user['id'] which is the doc ID. 
+    # But FirestoreDB.get_user(tg_id) takes tg_id. 
+    # I should check how I constructed the callback.
+    # In client.py: callback_data=f"approve_ai_report:{user['id']}:{log_id}"
+    # user['id'] is the doc ID.
+    
+    # I need a way to get user by doc ID or change client.py to use tg_id.
+    # Let's add get_user_by_doc_id to FirestoreDB or use tg_id in callback.
+    
+    # For now, let's assume I'll fix this in next step or use doc ID directly if I can.
+    # Actually, bot.send_message needs tg_id.
+    
+    # Let's fetch the log to get feedback
+    log = await FirestoreDB.get_log(user_id, log_id)
+    if not log:
+        await callback.answer("❌ Ошибка: лог не найден.", show_alert=True)
+        return
+        
+    feedback = log.get("feedback_to_client")
+    
+    # We need the user's tg_id to send them the message.
+    # The user doc ID is useful for Firestore, but we need tg_id for Telegram.
+    user_doc = FirestoreDB.db.collection("users").document(user_id).get()
+    if not user_doc.exists:
+        await callback.answer("❌ Ошибка: пользователь не найден.", show_alert=True)
+        return
+    
+    tg_id = user_doc.to_dict().get("tg_id")
+    
+    if feedback and tg_id:
+        try:
+            await bot.send_message(tg_id, feedback)
+            await callback.message.edit_text(f"{callback.message.text}\n\n✅ {hbold('Ответ ИИ отправлен клиенту.')}")
+        except Exception as e:
+            await callback.answer(f"❌ Ошибка отправки: {e}", show_alert=True)
+    else:
+        await callback.answer("❌ Ошибка: нет данных для отправки.", show_alert=True)
+    
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("custom_admin_report:"))
+async def custom_admin_report_start(callback: types.CallbackQuery, state: FSMContext):
+    parts = callback.data.split(":")
+    user_id = parts[1] # doc ID
+    log_id = parts[2]
+    
+    await state.update_data(custom_report_user_doc_id=user_id, custom_report_log_id=log_id)
+    await state.set_state(AdminStates.waiting_for_admin_custom_report)
+    
+    await callback.message.answer(
+        "📝 Введите ваш ответ для клиента:",
+        reply_markup=get_navigation_keyboard()
+    )
+    await callback.answer()
+
+@admin_router.message(AdminStates.waiting_for_admin_custom_report)
+async def admin_custom_report_handler(message: types.Message, state: FSMContext, bot: Bot):
+    if not is_admin(message.from_user.id): return
+    
+    if message.text == "🏠 В меню":
+        await state.clear()
+        await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=True))
+        return
+
+    data = await state.get_data()
+    user_doc_id = data.get("custom_report_user_doc_id")
+    log_id = data.get("custom_report_log_id")
+    
+    if not user_doc_id or not log_id:
+        await message.answer("❌ Ошибка: данные не найдены.")
+        await state.clear()
+        return
+
+    user_doc = FirestoreDB.db.collection("users").document(user_doc_id).get()
+    if not user_doc.exists:
+        await message.answer("❌ Ошибка: пользователь не найден.")
+        await state.clear()
+        return
+        
+    user_data = user_doc.to_dict()
+    tg_id = user_data.get("tg_id")
+    
+    try:
+        if message.text:
+            if message.text == "🏠 В меню":
+                await state.clear()
+                await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=True))
+                return
+            await bot.send_message(tg_id, message.text)
+            feedback_type = "text"
+            feedback_val = message.text
+        elif message.voice:
+            await bot.send_voice(tg_id, message.voice.file_id)
+            feedback_type = "voice"
+            feedback_val = message.voice.file_id
+        elif message.video_note:
+            await bot.send_video_note(tg_id, message.video_note.file_id)
+            feedback_type = "video_note"
+            feedback_val = message.video_note.file_id
+        else:
+            await message.answer("⚠️ Я поддерживаю только текст, голосовые сообщения и видео-кружки.")
+            return
+
+        # Update log with custom response
+        FirestoreDB.db.collection("users").document(user_doc_id).collection("logs").document(log_id).update({
+            "feedback_to_client_custom": feedback_val,
+            "feedback_type": feedback_type,
+            "responded_by_admin": True
+        })
+        
+        await message.answer(f"✅ Ваш ответ отправлен клиенту {user_data.get('full_name')}.", reply_markup=get_main_keyboard(is_admin=True))
+        await state.clear()
+    except Exception as e:
+        await message.answer(f"❌ Ошибка при отправке: {e}")
+
 @admin_router.message(StateFilter("*"))
 async def admin_catch_all(message: types.Message):
     if not is_admin(message.from_user.id):

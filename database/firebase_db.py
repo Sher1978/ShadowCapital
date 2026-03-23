@@ -53,10 +53,21 @@ class FirestoreDB:
         db.collection("users").document(doc_id).update(update_data)
 
     @staticmethod
-    async def add_log(user_doc_id: str, log_data: Dict[str, Any]):
+    async def add_log(user_doc_id: str, log_data: Dict[str, Any]) -> str:
         """Add a shadow log for a user (Sync wrapper)."""
         log_data['created_at'] = datetime.now(timezone.utc)
-        db.collection("users").document(user_doc_id).collection("logs").add(log_data)
+        _, doc_ref = db.collection("users").document(user_doc_id).collection("logs").add(log_data)
+        return doc_ref.id
+
+    @staticmethod
+    async def get_log(user_doc_id: str, log_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a specific log by ID (Sync wrapper)."""
+        doc = db.collection("users").document(user_doc_id).collection("logs").document(log_id).get()
+        if doc.exists:
+            data = doc.to_dict()
+            data['id'] = doc.id
+            return data
+        return None
 
     @staticmethod
     async def get_logs(user_doc_id: str, limit: int = 10) -> List[Dict[str, Any]]:

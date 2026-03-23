@@ -20,9 +20,10 @@ async def client_back_to_menu(message: types.Message):
     is_user_admin = is_admin(message.from_user.id)
     await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin))
 
-async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: dict):
+async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: dict, log_id: str):
     """Sends a detailed client report to all administrators in Vietnam (UTC+7) time."""
     from utils.timezone_utils import get_now_in_tz, adjust_to_tz
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
     
     # User-requested default: Vietnam (UTC+7)
     now_vn = get_now_in_tz("UTC+7")
@@ -50,9 +51,14 @@ async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: d
         f"📉 {hbold('SFI Score:')} {analysis.get('sfi_score', 'N/A')}"
     )
 
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Отправить ответ ИИ", callback_data=f"approve_ai_report:{user['id']}:{log_id}")
+    builder.button(text="📝 Свой ответ", callback_data=f"custom_admin_report:{user['id']}:{log_id}")
+    builder.adjust(1)
+
     for admin_id in ADMIN_IDS:
         try:
-            await bot.send_message(admin_id, admin_msg)
+            await bot.send_message(admin_id, admin_msg, reply_markup=builder.as_markup())
         except Exception as e:
             logging.error(f"Failed to notify admin {admin_id} of report: {e}")
 
@@ -482,7 +488,7 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
         "feedback_to_client": analysis.get("feedback_to_client", ""),
         "analysis_reason": analysis.get("internal_analysis", "")
     }
-    await FirestoreDB.add_log(user['id'], log_data)
+    log_id = await FirestoreDB.add_log(user['id'], log_data)
     
     # Update User Dashboard Stats
     update_data = {
@@ -530,11 +536,10 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     })
         
     # Notify Admin
-    await notify_admin_of_report(bot, user, content, analysis)
+    await notify_admin_of_report(bot, user, content, analysis, log_id)
         
     # Send AI auditor feedback back to user
-    feedback = analysis.get("feedback_to_client") or "Принято, твой Вечерний Отчет сохранен."
-    await message.answer(feedback)
+    await message.answer("✅ Отчет принят. Спасибо! Пожалуйста, дождись комментария Администратора.")
 
 @client_router.callback_query(F.data == "confirm_log")
 async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
@@ -575,7 +580,7 @@ async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, 
         "feedback_to_client": analysis.get("feedback_to_client", ""),
         "analysis_reason": analysis.get("internal_analysis", "")
     }
-    await FirestoreDB.add_log(user['id'], log_data)
+    log_id = await FirestoreDB.add_log(user['id'], log_data)
     
     update_data = {
         "sfi_index": analysis.get("sfi_score", 0.5),
@@ -606,10 +611,9 @@ async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, 
     })
     
     # Notify Admin
-    await notify_admin_of_report(bot, user, content, analysis)
-
-    feedback = analysis.get("feedback_to_client") or "Принято, твой Вечерний Отчет сохранен."
-    await callback.message.answer(feedback)
+    await notify_admin_of_report(bot, user, content, analysis, log_id)
+    
+    await callback.message.edit_text("✅ Отчет принят. Спасибо! Пожалуйста, дождись комментария Администратора.")
     await state.clear()
     await callback.answer("Отправлено!")
 
