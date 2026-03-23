@@ -350,7 +350,7 @@ async def re_submit_log_callback(callback: types.CallbackQuery):
     await trigger_shadow_log_prompt(callback.message)
     await callback.answer()
 
-@client_router.message((F.text | F.voice | F.audio) & ~F.text.in_(MENU_KEYWORDS))
+@client_router.message(F.voice | F.audio | (F.text & ~F.text.in_(MENU_KEYWORDS)))
 async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     user = await FirestoreDB.get_user(message.from_user.id)
     

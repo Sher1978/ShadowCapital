@@ -119,7 +119,12 @@ class FirestoreDB:
         """Get all active users for scheduler (Sync wrapper)."""
         query = db.collection("users").where("status", "==", "active")
         docs = query.stream()
-        return [doc.to_dict() for doc in docs]
+        users = []
+        for doc in docs:
+            d = doc.to_dict()
+            d['id'] = doc.id
+            users.append(d)
+        return users
 
     @staticmethod
     async def delete_user_and_data(tg_id: int):

@@ -97,11 +97,8 @@ async def trigger_weekly_handler(message: types.Message, bot: Bot):
 
 # --- Navigation Handlers ---
 
-@admin_router.message(F.text == "🏠 В меню", StateFilter("*"))
+@admin_router.message(F.text == "🏠 В меню", F.from_user.id.func(is_admin), StateFilter("*"))
 async def back_to_menu_handler(message: types.Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
-        await message.answer("⚠️ У тебя нет прав администратора.")
-        return
     await state.clear()
     await message.answer("Возвращаемся в главное меню.", reply_markup=get_main_keyboard(is_admin=True))
 
@@ -210,10 +207,8 @@ async def admin_reply_handler(message: types.Message, state: FSMContext, bot: Bo
     
     await state.clear()
 
-@admin_router.message(F.text == "💼 Админ Панель")
+@admin_router.message(F.text == "💼 Админ Панель", F.from_user.id.func(is_admin))
 async def admin_panel_handler(message: types.Message):
-    if not is_admin(message.from_user.id):
-        return
     
     text = (
         f"{hbold('Доступные команды:')}\n\n"
@@ -224,14 +219,10 @@ async def admin_panel_handler(message: types.Message):
     )
     await message.answer(text)
 
-@admin_router.message(F.text.contains("Заявки"), StateFilter("*"))
+@admin_router.message(F.text.contains("Заявки"), F.from_user.id.func(is_admin), StateFilter("*"))
 async def pending_list_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f"🖱 Handling 'Requests' list for {user_id}")
-    
-    if not is_admin(user_id):
-        logger.warning(f"🚫 Unauthorized attempt to access 'Requests' by user {user_id}")
-        return
+    logger.info(f" Handling 'Requests' list for {user_id}")
     
     logger.info(f"🔍 [ADMIN] 'Pending Requests' handler triggered by {user_id}")
         
@@ -299,14 +290,10 @@ async def process_pending_pagination(callback: types.CallbackQuery):
     await show_pending_page(callback, page)
     await callback.answer()
 
-@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"), StateFilter("*"))
+@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"), F.from_user.id.func(is_admin), StateFilter("*"))
 async def active_sprints_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f"🖱 Handling 'Clients' list for {user_id}")
-    
-    if not is_admin(user_id):
-        await message.answer("⚠️ У тебя нет прав администратора.")
-        return
+    logger.info(f" Handling 'Clients' list for {user_id}")
     
     logger.info(f"🔍 [ADMIN] 'Active Sprints' handler triggered by {user_id}")
         
@@ -363,13 +350,9 @@ async def show_active_page(message: types.Message, page: int = 0):
     else:
         await message.answer(text, reply_markup=builder.as_markup())
 
-@admin_router.message(F.text.contains("Аналитика"), StateFilter("*"))
+@admin_router.message(F.text.contains("Аналитика"), F.from_user.id.func(is_admin), StateFilter("*"))
 async def admin_analytics_handler(message: types.Message, state: FSMContext):
-    if not is_admin(message.from_user.id):
-        await message.answer("⚠️ У тебя нет прав администратора.")
-        return
-    
-    logger.info(f"🔍 [ADMIN] 'Analytics' handler triggered by {message.from_user.id}")
+    logger.info(f" [ADMIN] 'Analytics' handler triggered by {message.from_user.id}")
     
     # Safety clear
     await state.clear()
@@ -560,15 +543,10 @@ async def approve_user_start_registration(callback: types.CallbackQuery, state: 
     await callback.message.answer(f"Начинаем регистрацию для ID {tg_id}.\nВведите название Теневого Качества (L1):")
     await callback.answer()
 
-@admin_router.message(F.text.contains("Добавить клиента"), StateFilter("*"))
-@admin_router.message(Command("add_client"), StateFilter("*"))
+@admin_router.message(F.text.contains("Добавить клиента"), F.from_user.id.func(is_admin), StateFilter("*"))
+@admin_router.message(Command("add_client"), F.from_user.id.func(is_admin), StateFilter("*"))
 async def start_add_client(message: types.Message, state: FSMContext):
-    logger.info(f"🖱 Button 'Add Client' clicked by {message.from_user.id}")
-    if not is_admin(message.from_user.id):
-        logger.warning(f"🚫 Unauthorized attempt to use 'Add Client' by user {message.from_user.id}")
-        return
-    
-    logger.info(f"🔍 [ADMIN] 'Add Client' flow started by {message.from_user.id}")
+    logger.info(f" [ADMIN] 'Add Client' flow started by {message.from_user.id}")
     
     await state.clear() # Clear any previous state before starting new registration
     

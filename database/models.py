@@ -14,7 +14,7 @@ class User(Base):
     role = Column(String, default="client")  # client, admin
     status = Column(String, default="new")  # new, pending, active, rejected
     shadow_map_id = Column(Integer, ForeignKey("shadow_maps.id"), nullable=True)
-    timezone = Column(String, default="UTC")
+    timezone = Column(String, default="UTC+7")
     sprint_start_date = Column(DateTime, nullable=True) # Date when the 30-day sprint actually begins
     morning_time = Column(String, default="08:00")
     evening_time = Column(String, default="20:00")

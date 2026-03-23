@@ -5,6 +5,7 @@ from aiogram import Bot
 from database.firebase_db import FirestoreDB
 from datetime import datetime, timezone
 import logging
+import re
 from config import ADMIN_IDS
 from utils.analysis import generate_weekly_briefing, generate_group_weekly_summary
 from utils.gsheets_api import get_daily_task_from_sheets, get_evening_question_from_sheets
@@ -28,7 +29,7 @@ async def send_admin_morning_pulse(bot: Bot):
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
-    builder.button(text="🚀 Спринты", callback_data="active_sprints_page_0")
+    builder.button(text="🚀 Спринты", callback_data="active_page_0")
     
     for admin_id in ADMIN_IDS:
         try: await bot.send_message(admin_id, text, reply_markup=builder.as_markup())
@@ -268,41 +269,61 @@ async def send_group_weekly_report(bot: Bot):
 async def send_weekly_briefings(bot: Bot):
     pass
 
+def get_timezone_offset(tz_str: str) -> int:
+    """Parses 'UTC+X' or 'UTC-X' strings into integer offset. Returns 7 as default."""
+    if not tz_str: return 7
+    try:
+        # Extract the number part, handling both + and -
+        match = re.search(r'([+-]?\d+)', tz_str)
+        if match:
+            return int(match.group(1))
+    except:
+        pass
+    return 7
+
+def is_quiet_hours(local_time: datetime) -> bool:
+    """Quiet hours: 23:00 to 08:00."""
+    return local_time.hour >= 23 or local_time.hour < 8
+
 async def dynamic_scheduler_job(bot: Bot):
     """Ticks every minute to check if any user needs a message based on their custom settings."""
     now = datetime.now(timezone.utc)
-    current_time_str = now.strftime("%H:%M")
-    today = now.date()
     
     users = await FirestoreDB.get_active_users()
     
     for user in users:
         # Timezone-aware check
-        user_tz_str = user.get('timezone', 'UTC+3')
-        try:
-            # Parse "UTC+X" or "UTC-X"
-            offset = int(user_tz_str.replace("UTC", "").replace("+", ""))
-        except:
-            offset = 3
+        user_tz_str = user.get('timezone', 'UTC+7')
+        offset = get_timezone_offset(user_tz_str)
             
         from datetime import timedelta
         user_local_time = now + timedelta(hours=offset)
         user_time_str = user_local_time.strftime("%H:%M")
 
+        # Check Quiet Hours - safety net
+        if is_quiet_hours(user_local_time):
+            # logger.debug(f"🤫 [SCHEDULER] Quiet hours for user {user.get('tg_id')}. Skipping pulses.")
+            continue
+
+        today = user_local_time.date()
+
         # Check morning
         user_morning_time = user.get("morning_time") or "09:00"
         if user_morning_time == user_time_str:
             last_sent_dt = user.get("last_morning_sent")
-            last_sent = last_sent_dt.date() if last_sent_dt else None
-            if last_sent != today:
+            # Convert last_sent_dt to local date for comparison
+            last_sent_date = (last_sent_dt + timedelta(hours=offset)).date() if last_sent_dt else None
+            
+            if last_sent_date != today:
                 await send_morning_impulse(bot, user)
         
         # Check evening
         user_evening_time = user.get("evening_time") or "21:30"
         if user_evening_time == user_time_str:
             last_sent_dt = user.get("last_evening_sent")
-            last_sent = last_sent_dt.date() if last_sent_dt else None
-            if last_sent != today:
+            last_sent_date = (last_sent_dt + timedelta(hours=offset)).date() if last_sent_dt else None
+            
+            if last_sent_date != today:
                 await request_evening_logs(bot, user)
 
 async def reload_admin_jobs(bot: Bot):

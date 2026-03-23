@@ -20,6 +20,17 @@ async def transcribe_voice(file_path: str) -> str:
             model = genai.GenerativeModel("gemini-1.5-flash")
             # Upload file to Gemini
             sample_file = genai.upload_file(path=file_path)
+            
+            # Wait for file to be processed
+            import asyncio
+            for _ in range(30): # Timeout after 30 seconds
+                if sample_file.state.name == "ACTIVE":
+                    break
+                if sample_file.state.name == "FAILED":
+                    raise Exception("Gemini file processing failed")
+                await asyncio.sleep(1)
+                sample_file = genai.get_file(sample_file.name)
+            
             response = model.generate_content([sample_file, "Расшифруй это аудио сообщение в текст СТРОГО без своих комментариев."])
             if response.text:
                 return response.text
