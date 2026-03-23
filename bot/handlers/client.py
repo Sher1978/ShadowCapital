@@ -10,14 +10,15 @@ from utils.transcription import transcribe_voice
 from utils.analysis import analyze_sabotage
 from utils.alerts import send_red_alert
 from utils.gsheets_api import sync_user_to_sheets
-from config import ADMIN_IDS, MENU_KEYWORDS
+from config import ADMIN_IDS, MENU_KEYWORDS, is_admin
 from datetime import datetime, timezone
 
 client_router = Router()
 
 @client_router.message(F.text == "🏠 В меню")
 async def client_back_to_menu(message: types.Message):
-    await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=False))
+    is_user_admin = is_admin(message.from_user.id)
+    await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin))
 
 async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: dict):
     """Sends a detailed client report to all administrators in Vietnam (UTC+7) time."""
@@ -377,8 +378,9 @@ async def back_to_menu_callback(callback: types.CallbackQuery, state: FSMContext
     if state:
         await state.clear()
     await callback.message.delete()
+    is_user_admin = is_admin(callback.from_user.id)
     # Simple menu return - user is active if they are here
-    await callback.message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=False, is_active=True))
+    await callback.message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin, is_active=True))
     await callback.answer()
 
 @client_router.callback_query(F.data == "re_submit_log")
