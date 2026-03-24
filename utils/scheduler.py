@@ -106,6 +106,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
     logger.info(f"🌅 [SCHEDULER] Found {len(users)} active users for morning pulse.")
     
     count = 0
+    sent_to_names = []
     last_text = None
     for u in users:
         u_id = u.get('tg_id')
@@ -168,10 +169,13 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
             await FirestoreDB.update_user(u['id'], {"last_morning_sent": now})
             logger.info(f"✅ [SCHEDULER] Morning impulse sent to {u_id}")
             count += 1
+            sent_to_names.append(u.get('full_name', f"ID: {u_id}"))
         except Exception as e:
             logger.error(f"❌ [SCHEDULER] Failed to process morning for {u_id}: {e}")
             
     summary = f"🌅 [SCHEDULER] Рассылка завершена. Отправлено: {count} чел."
+    if count > 0:
+        summary += f" ({', '.join(sent_to_names)})"
     if count > 0 and last_text:
         # Extract the task text part for brevity or send full message?
         # The user wants "текст отправленного сообщения", so I'll send the full text
