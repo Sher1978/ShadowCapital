@@ -23,7 +23,7 @@ def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
     builder.button(text="🎯 Моя цель")
     builder.button(text="📝 Вечерний Отчет")
     builder.button(text="📈 Мои результаты")
-    builder.button(text="🆘 SOS")
+    builder.button(text="❓ Вопрос куратору")
     builder.button(text="⚙️ Настройки")
     builder.button(text="📖 Инструкция")
     

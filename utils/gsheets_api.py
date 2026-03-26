@@ -239,6 +239,7 @@ async def get_task_2_0(day: int, scenario: str) -> dict:
     COL_DAY = 0
     COL_SCENARIO = 1
     COL_DAY_NAME = 2
+    COL_PHASE = 3
     COL_THEORY = 4
     COL_LIGHT = 5
     COL_MEDIUM = 6
@@ -260,6 +261,7 @@ async def get_task_2_0(day: int, scenario: str) -> dict:
         if sheet_day == str(day) and (sheet_scenario == target_scenario or sheet_scenario in ["all", ""]):
             return {
                 "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day}",
+                "phase": row[COL_PHASE] if len(row) > COL_PHASE else "",
                 "theory": row[COL_THEORY] if len(row) > COL_THEORY else "",
                 "task_light": row[COL_LIGHT] if len(row) > COL_LIGHT else "",
                 "task_medium": row[COL_MEDIUM] if len(row) > COL_MEDIUM else "",

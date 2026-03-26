@@ -278,8 +278,8 @@ async def my_results_handler(message: types.Message) -> None:
         
     await message.answer(text)
 
-@client_router.message(F.text == "🆘 SOS")
-async def sos_handler(message: types.Message, bot: Bot):
+@client_router.message(F.text == "❓ Вопрос куратору")
+async def curator_question_handler(message: types.Message, bot: Bot):
     user = await FirestoreDB.get_user(message.from_user.id)
     
     if not user:
@@ -289,15 +289,15 @@ async def sos_handler(message: types.Message, bot: Bot):
         bot,
         user.get('full_name', "Клиент"),
         user.get('tg_id'),
-        "SOS",
-        "Запрос экстренной связи от клиента",
-        "Нажата кнопка SOS в боте."
+        "QUESTION",
+        "Запрос связи с куратором",
+        "Нажата кнопка 'Вопрос куратору' в боте."
     )
         
     await message.answer(
-        "🆘 Сигнал SOS отправлен куратору. Тебя 'накрыло' сопротивление? \n\n"
-        "Не переживай, это нормально. Куратор свяжется с тобой в ближайшее время. "
-        "Попробуй пока просто дышать и наблюдать за этим чувством."
+        "❓ Твой вопрос отправлен куратору. \n\n"
+        "Мы свяжемся с тобой в ближайшее время. "
+        "Пока можешь сформулировать вопрос подробнее или просто подождать ответа."
     )
 
 @client_router.message(Command("wipe_data"))
@@ -634,11 +634,13 @@ async def task_level_selection_handler(callback: types.CallbackQuery, bot: Bot):
         return
         
     task_text = task_data.get(f"task_{level_key}")
+    phase_text = f"{hitalic(task_data.get('phase'))}\n\n" if task_data.get('phase') else ""
     level_names = {"light": "◽️ Light", "medium": "🔶 Medium", "hard": "🔥 Hard"}
     
     await callback.message.edit_text(
         f"✅ {hbold('Твой выбор принят!')}\n"
         f"Уровень: {hbold(level_names[level_key])}\n\n"
+        f"{phase_text}"
         f"🎯 {hbold('Задание:')}\n{task_text}\n\n"
         f"Удачи! Жду твой отчет вечером."
     )

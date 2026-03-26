@@ -28,7 +28,7 @@ def is_admin(user_id: int) -> bool:
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1vGvlttP6SqfSdBSiD8Z4pn3iSfBSthtus5H54MDnsP8/edit?usp=sharing"
 
 MENU_KEYWORDS = [
-    "🎯 Моя цель", "📝 Вечерний Отчет", "📈 Мои результаты", "🆘 SOS", 
+    "🎯 Моя цель", "📝 Вечерний Отчет", "📈 Мои результаты", "❓ Вопрос куратору", 
     "⚙️ Настройки", "📖 Инструкция", "🚀 Активировать Спринт", 
     "🏠 В меню", "⬅️ Назад",
     "👥 Клиенты", "⌛️ Заявки", "📊 Аналитика", "➕ Добавить клиента"

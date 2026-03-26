@@ -159,9 +159,10 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
             
             if task_body:
                 # Fallback style
+                quality = u.get('target_quality_l1') or u.get('target_quality') or 'Проработка Тени'
                 text = (
                     f"{random.choice(greetings)}\n\n"
-                    f"💎 {hbold(u.get('target_quality_l1'))}: {day_name}\n\n"
+                    f"💎 {hbold(quality)}: {day_name}\n\n"
                     f"{task_body}"
                 )
                 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -171,9 +172,12 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
                 builder.adjust(1)
             else:
                 # Task Engine 2.0 Style
+                quality = u.get('target_quality_l1') or u.get('target_quality') or 'Проработка Тени'
+                phase_text = f"{hitalic(task_data.get('phase'))}\n\n" if task_data.get('phase') else ""
                 text = (
                     f"{random.choice(greetings)}\n\n"
-                    f"💎 {hbold(u.get('target_quality_l1'))}: {day_name}\n\n"
+                    f"💎 {hbold(quality)}: {day_name}\n\n"
+                    f"{phase_text}"
                     f"{theory or 'Пора приступать к работе.'}\n\n"
                     f"Выбери уровень сложности на сегодня:"
                 )
