@@ -18,10 +18,6 @@ import random
 
 client_router = Router()
 
-@client_router.message(F.text == "🏠 В меню")
-async def client_back_to_menu(message: types.Message):
-    is_user_admin = is_admin(message.from_user.id)
-    await message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin))
 
 async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: dict, log_id: str):
     """Sends a detailed client report to all administrators in Vietnam (UTC+7) time."""
@@ -66,6 +62,8 @@ async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: d
             logging.error(f"Failed to notify admin {admin_id} of report: {e}")
 
 @client_router.message(CommandStart())
+@client_router.message(Command("menu"))
+@client_router.message(F.text == "🏠 В меню")
 async def command_start_handler(message: types.Message) -> None:
     is_admin = message.from_user.id in ADMIN_IDS
     
@@ -199,11 +197,16 @@ async def morning_confirm_handler(callback: types.CallbackQuery):
 async def morning_already_confirmed_handler(callback: types.CallbackQuery):
     await callback.answer("Ты уже подтвердил готовность на сегодня! 🚀", show_alert=True)
 
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user: return
+    
     # Notify Admins
     from aiogram import Bot
     bot = callback.bot
     client_name = user.get('full_name', "N/A")
     confirm_time = datetime.now(timezone.utc).strftime("%H:%M")
+    
+    original_text = callback.message.text or callback.message.caption or ""
     
     # Try to extract just the task body (between greetings and footer)
     task_text = original_text
@@ -301,28 +304,6 @@ async def curator_question_handler(message: types.Message, bot: Bot):
         "Пока можешь сформулировать вопрос подробнее или просто подождать ответа."
     )
 
-@client_router.message(Command("wipe_data"))
-async def delete_my_data_handler(message: types.Message):
-    """
-    Deletes all user logs (GDPR-like compliance).
-    """
-    async with get_db_session() as session:
-        stmt_user = select(User).where(User.tg_id == message.from_user.id)
-        result = await session.execute(stmt_user)
-        user = result.scalar_one_or_none()
-        
-        if not user:
-            return
-
-        # Delete all logs
-        await session.execute(delete(ShadowLog).where(ShadowLog.user_id == user.id))
-        await session.commit()
-    
-    await message.answer(
-        "🗑 Все твои Shadow Logs были безвозвратно удалены из системы. \n"
-        "Мы ценим твою приватность. Твой прогресс (качество) сохранен, "
-        "но история сообщений очищена."
-    )
 
 async def trigger_shadow_log_prompt(message: types.Message):
     """Refactored helper to show the report prompt."""
