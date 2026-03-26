@@ -9,7 +9,7 @@ import logging
 from utils.transcription import transcribe_voice
 from utils.analysis import analyze_sabotage
 from utils.alerts import send_red_alert
-from utils.gsheets_api import sync_user_to_sheets, sync_sfi_analytics
+from utils.gsheets_api import sync_user_to_sheets, sync_sfi_analytics, get_instruction_text
 from utils.sfi_logic import calculate_daily_sfi, get_sfi_zone
 from config import ADMIN_IDS, MENU_KEYWORDS, is_admin
 from datetime import datetime, timezone, time
@@ -225,18 +225,13 @@ async def morning_already_confirmed_handler(callback: types.CallbackQuery):
         except Exception as e:
             logging.error(f"Failed to notify admin {admin_id} about task acceptance: {e}")
 
-@client_router.message(F.text == "Как это работает")
-async def how_it_works_handler(message: types.Message) -> None:
-    text = (
-        f"{hbold('Как проходит Shadow Sprint:')}\n\n"
-        f"1. {hbold('Утренний Импульс:')} Ты получаешь задание на день. Это микро-действие для интеграции твоего нового качества.\n"
-        f"2. {hbold('Вечерний Отчет:')} Ты присылаешь ответ (текст или голос). Рассказываешь, как проявилось качество и какое было сопротивление.\n"
-        f"3. {hbold('Обход Хранителя:')} Мы действуем незаметно, чтобы твоя психика не блокировала изменения.\n\n"
-        f"Твоя задача — быть честным в отчетах. ИИ проанализирует их и даст сигнал куратору, если заметит саботаж."
-    )
-    await message.answer(text)
+@client_router.message(F.text == "📖 Инструкция")
+async def instruction_handler(message: types.Message) -> None:
+    from utils.gsheets_api import get_instruction_text
+    text = await get_instruction_text()
+    await message.answer(text, parse_mode="Markdown")
 
-@client_router.message(F.text == "Моя цель")
+@client_router.message(F.text == "🎯 Моя цель")
 async def my_goal_handler(message: types.Message) -> None:
     user = await FirestoreDB.get_user(message.from_user.id)
     

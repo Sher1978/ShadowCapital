@@ -5,6 +5,7 @@ import os
 import asyncio
 import random
 from datetime import datetime, timezone
+import time
 from config import GOOGLE_SHEET_URL as SPREADSHEET_URL
 
 # Scope for Google Sheets and Drive
@@ -149,7 +150,55 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
             raise RuntimeError(f"GSheets error: {err_msg}")
     return await asyncio.to_thread(_get_task)
 
-async def get_task_2_0(day: int, scenario: str):
+# Cache for Instruction text (24-hour TTL)
+_INSTRUCTION_CACHE = {
+    "text": None,
+    "last_fetch": 0
+}
+
+async def get_instruction_text() -> str:
+    """
+    Fetches instruction text from 'INSTRUCTIONS' sheet or returns default from utils.texts.
+    """
+    from utils.texts import INSTRUCTION_TEXT
+    
+    now = time.time()
+    if _INSTRUCTION_CACHE["text"] and (now - _INSTRUCTION_CACHE["last_fetch"] < 86400):
+        return _INSTRUCTION_CACHE["text"]
+        
+    def _fetch():
+        client = get_gsheets_client()
+        if not client: return None
+        try:
+            sh = client.open_by_url(SPREADSHEET_URL)
+            # Try to find the INSTRUCTIONS sheet
+            try:
+                worksheet = sh.worksheet("INSTRUCTIONS")
+            except:
+                # Fallback if sheet doesn't exist
+                return INSTRUCTION_TEXT
+            
+            # Get all values from the first column or specific cell
+            # Let's assume the text is in the first cell or built from rows
+            rows = worksheet.get_all_values()
+            if not rows: return INSTRUCTION_TEXT
+            
+            # Join all rows if it's a multi-line text split across rows
+            full_text = "\n".join([" ".join(row) for row in rows if row]).strip()
+            return full_text if full_text else INSTRUCTION_TEXT
+            
+        except Exception as e:
+            logging.error(f"Error fetching Instructions: {e}")
+            return INSTRUCTION_TEXT
+
+    text = await asyncio.to_thread(_fetch)
+    if text:
+        _INSTRUCTION_CACHE["text"] = text
+        _INSTRUCTION_CACHE["last_fetch"] = now
+        
+    return text or INSTRUCTION_TEXT
+
+async def get_task_2_0(day: int, scenario: str) -> dict:
     """
     Fetches multi-level task data from NEW_TASK_ENGINE sheet.
     Supports caching with TTL.
