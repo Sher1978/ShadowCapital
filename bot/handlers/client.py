@@ -588,20 +588,12 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
 @client_router.callback_query(F.data.startswith("task_level:"))
 async def task_level_selection_handler(callback: types.CallbackQuery, bot: Bot):
     level_key = callback.data.split(":")[1] # light, medium, hard
-    level_map = {"light": 1, "medium": 2, "hard": 3}
-    l_val = level_map.get(level_key, 2)
     
     user = await FirestoreDB.get_user(callback.from_user.id)
     if not user: return
     
-    # Update user choice
-    await FirestoreDB.update_user(user['id'], {"current_day_level": l_val})
-    
     # Fetch task text
     from utils.gsheets_api import get_task_2_0
-    from utils.timezone_utils import get_now_in_tz
-    user_tz = user.get('timezone', 'UTC+7')
-    now_user = get_now_in_tz(user_tz)
     
     start_date = user.get('sprint_start_date') or user.get('created_at')
     if isinstance(start_date, str):
@@ -620,18 +612,64 @@ async def task_level_selection_handler(callback: types.CallbackQuery, bot: Bot):
     level_names = {"light": "◽️ Light", "medium": "🔶 Medium", "hard": "🔥 Hard"}
     
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔄 Сменить уровень", callback_data="change_task_level")
+    builder.button(text="✅ Подтвердить", callback_data=f"task_confirm:{level_key}")
+    builder.button(text="🔄 Выбрать Другое", callback_data="change_task_level")
     builder.adjust(1)
     
     await callback.message.edit_text(
-        f"✅ {hbold('Твой выбор принят!')}\n"
-        f"Уровень: {hbold(level_names[level_key])}\n\n"
+        f"🎯 {hbold('Выбранный уровень:')} {level_names[level_key]}\n\n"
         f"{phase_text}"
-        f"🎯 {hbold('Задание:')}\n{task_text}\n\n"
-        f"Удачи! Жду твой отчет вечером.",
+        f"{hbold('Задание:')}\n{task_text}\n\n"
+        f"Подтверждаешь свой выбор на сегодня?",
         reply_markup=builder.as_markup()
     )
     await callback.answer()
+
+@client_router.callback_query(F.data.startswith("task_confirm:"))
+async def task_level_confirm_handler(callback: types.CallbackQuery, bot: Bot):
+    level_key = callback.data.split(":")[1]
+    level_map = {"light": 1, "medium": 2, "hard": 3}
+    l_val = level_map.get(level_key, 2)
+    level_names = {"light": "◽️ Light", "medium": "🔶 Medium", "hard": "🔥 Hard"}
+
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user: return
+    
+    # Update user choice in DB
+    await FirestoreDB.update_user(user['id'], {"current_day_level": l_val})
+    
+    # Notify Admins
+    client_name = user.get('full_name', "N/A")
+    confirm_time = datetime.now(timezone.utc).strftime("%H:%M")
+    
+    # Extract task text for admin notification
+    original_text = callback.message.text or ""
+    task_text = "N/A"
+    if "Задание:\n" in original_text:
+        task_text = original_text.split("Задание:\n")[1].split("\n\nПодтверждаешь")[0]
+
+    admin_msg = (
+        f"✅ {hbold('Задача принята!')}\n\n"
+        f"👤 {hbold('Клиент:')} {client_name}\n"
+        f"🎯 {hbold('Уровень:')} {level_names[level_key]}\n"
+        f"⏰ {hbold('Время:')} {confirm_time} UTC\n"
+        f"📝 {hbold('Задание:')}\n{task_text}"
+    )
+
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, admin_msg)
+        except Exception as e:
+            logging.error(f"Failed to notify admin {admin_id} about task acceptance: {e}")
+
+    # Final message to client
+    await callback.message.edit_text(
+        f"✅ {hbold('Твой выбор принят!')}\n"
+        f"Уровень: {hbold(level_names[level_key])}\n\n"
+        f"🎯 {hbold('Задание:')}\n{task_text}\n\n"
+        f"Действуй! Жду твой отчет вечером."
+    )
+    await callback.answer("Выбор подтвержден!")
 
 @client_router.callback_query(F.data == "change_task_level")
 async def task_level_change_request_handler(callback: types.CallbackQuery, bot: Bot):
