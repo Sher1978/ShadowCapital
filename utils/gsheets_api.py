@@ -169,8 +169,8 @@ async def get_task_2_0(day: int, scenario: str):
             try:
                 sh = client.open_by_url(SPREADSHEET_URL)
                 worksheet = sh.worksheet("NEW_TASK_ENGINE")
-                # Using get_all_records maps headers to dict keys
-                return worksheet.get_all_records()
+                # Using get_all_values avoids header naming issues
+                return worksheet.get_all_values()
             except Exception as e:
                 logging.error(f"Error fetching NEW_TASK_ENGINE: {e}")
                 return None
@@ -179,30 +179,44 @@ async def get_task_2_0(day: int, scenario: str):
         if records:
             _TASK_ENGINE_CACHE["data"] = records
             _TASK_ENGINE_CACHE["last_fetch"] = now
-            logging.info("🔄 Task Engine Cache Updated.")
+            logging.info("🔄 Task Engine Cache Updated (Values API).")
         else:
-            # If fetch fails, try using stale cache
             records = _TASK_ENGINE_CACHE["data"]
 
-    if not records:
+    if not records or len(records) < 2:
         return None
 
-    # 3. Find specific row
+    # 3. Define Column Indices (based on: Day, Scenario, Day Name, Phase, Theory, Light, Medium, Hard, Guard, Evening)
+    COL_DAY = 0
+    COL_SCENARIO = 1
+    COL_DAY_NAME = 2
+    COL_THEORY = 4
+    COL_LIGHT = 5
+    COL_MEDIUM = 6
+    COL_HARD = 7
+    COL_GUARD = 8
+    COL_EVENING = 9
+
+    # 4. Find specific row
     target_scenario = str(scenario).lower().strip()
-    for row in records:
-        # Normalize scenario from sheet
-        sheet_scenario = str(row.get('Scenario', '')).lower().strip()
-        sheet_day = str(row.get('Day', ''))
+    # Skip header
+    for row in records[1:]:
+        if not row: continue
         
-        if sheet_day == str(day) and (sheet_scenario == target_scenario or sheet_scenario == "all"):
+        # Normalize scenario from sheet
+        sheet_scenario = str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip()
+        sheet_day = str(row[COL_DAY] if len(row) > COL_DAY else "")
+        
+        # Match day and (scenario or "all" or empty)
+        if sheet_day == str(day) and (sheet_scenario == target_scenario or sheet_scenario in ["all", ""]):
             return {
-                "day_name": row.get('Day Name', f"День {day}"),
-                "theory": row.get('Theory', ''),
-                "task_light": row.get('Task_LIGHT', ''),
-                "task_medium": row.get('Task_MEDIUM', ''),
-                "task_hard": row.get('Task_HARD', ''),
-                "guard_trap": row.get('Guard_Trap', ''),
-                "evening_report": row.get('Evening_Report', '')
+                "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day}",
+                "theory": row[COL_THEORY] if len(row) > COL_THEORY else "",
+                "task_light": row[COL_LIGHT] if len(row) > COL_LIGHT else "",
+                "task_medium": row[COL_MEDIUM] if len(row) > COL_MEDIUM else "",
+                "task_hard": row[COL_HARD] if len(row) > COL_HARD else "",
+                "guard_trap": row[COL_GUARD] if len(row) > COL_GUARD else "",
+                "evening_report": row[COL_EVENING] if len(row) > COL_EVENING else ""
             }
             
     return None
