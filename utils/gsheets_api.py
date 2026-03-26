@@ -11,12 +11,23 @@ from config import GOOGLE_SHEET_URL as SPREADSHEET_URL
 # Scope for Google Sheets and Drive
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-# --- Task Engine 2.0 Cache ---
-_TASK_ENGINE_CACHE = {
-    "data": None,
-    "last_fetch": None
-}
-CACHE_TTL_SECONDS = 3600 # 1 hour
+# --- Firebase-as-Cache Implementation ---
+SHEET_NAME_TASK_ENGINE = "NEW_TASK_ENGINE"
+SHEET_NAME_INSTRUCTIONS = "INSTRUCTIONS"
+
+async def get_all_values(sheet_name: str) -> Optional[List[List[Any]]]:
+    """Helper to fetch all values from a specific worksheet."""
+    def _fetch():
+        client = get_gsheets_client()
+        if not client: return None
+        try:
+            sh = client.open_by_url(SPREADSHEET_URL)
+            worksheet = sh.worksheet(sheet_name)
+            return worksheet.get_all_values()
+        except Exception as e:
+            logging.error(f"Error fetching sheet {sheet_name}: {e}")
+            return None
+    return await asyncio.to_thread(_fetch)
 
 def get_gsheets_client():
     """
@@ -150,92 +161,113 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
             raise RuntimeError(f"GSheets error: {err_msg}")
     return await asyncio.to_thread(_get_task)
 
-# Cache for Instruction text (24-hour TTL)
-_INSTRUCTION_CACHE = {
-    "text": None,
-    "last_fetch": 0
-}
-
-async def get_instruction_text() -> str:
-    """
-    Fetches instruction text from 'INSTRUCTIONS' sheet or returns default from utils.texts.
-    """
-    from utils.texts import INSTRUCTION_TEXT
+async def sync_gsheets_to_firestore():
+    """Fetch all data from GSheets and save to Firestore cache."""
+    from database.firebase_db import FirestoreDB
+    import logging
     
-    now = time.time()
-    if _INSTRUCTION_CACHE["text"] and (now - _INSTRUCTION_CACHE["last_fetch"] < 86400):
-        return _INSTRUCTION_CACHE["text"]
+    logging.info("🔄 Starting GSheets to Firestore synchronization...")
+    
+    # 1. Sync Tasks Matrix
+    all_values = await get_all_values(SHEET_NAME_TASK_ENGINE)
+    if not all_values:
+        raise RuntimeError("Could not fetch values from Task Engine sheet")
         
-    def _fetch():
-        client = get_gsheets_client()
-        if not client: return None
-        try:
-            sh = client.open_by_url(SPREADSHEET_URL)
-            # Try to find the INSTRUCTIONS sheet
-            try:
-                worksheet = sh.worksheet("INSTRUCTIONS")
-            except:
-                # Fallback if sheet doesn't exist
-                return INSTRUCTION_TEXT
-            
-            # Get all values from the first column or specific cell
-            # Let's assume the text is in the first cell or built from rows
-            rows = worksheet.get_all_values()
-            if not rows: return INSTRUCTION_TEXT
-            
-            # Join all rows if it's a multi-line text split across rows
-            full_text = "\n".join([" ".join(row) for row in rows if row]).strip()
-            return full_text if full_text else INSTRUCTION_TEXT
-            
-        except Exception as e:
-            logging.error(f"Error fetching Instructions: {e}")
-            return INSTRUCTION_TEXT
+    COL_DAY = 0
+    COL_SCENARIO = 1
+    COL_DAY_NAME = 2
+    COL_PHASE = 3
+    COL_THEORY = 4
+    COL_LIGHT = 5
+    COL_MEDIUM = 6
+    COL_HARD = 7
+    COL_GUARD = 8
+    COL_EVENING = 9
+    
+    tasks_to_cache = []
+    # Skip header
+    for row in all_values[1:]:
+        if not row or len(row) <= COL_DAY: continue
+        
+        day_str = str(row[COL_DAY]).strip()
+        if not day_str.isdigit(): continue
+        
+        tasks_to_cache.append({
+            "day": int(day_str),
+            "scenario": str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip() or "all",
+            "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day_str}",
+            "phase": row[COL_PHASE] if len(row) > COL_PHASE else "",
+            "theory": row[COL_THEORY] if len(row) > COL_THEORY else "",
+            "task_light": row[COL_LIGHT] if len(row) > COL_LIGHT else "",
+            "task_medium": row[COL_MEDIUM] if len(row) > COL_MEDIUM else "",
+            "task_hard": row[COL_HARD] if len(row) > COL_HARD else "",
+            "guard_trap": row[COL_GUARD] if len(row) > COL_GUARD else "",
+            "evening_report": row[COL_EVENING] if len(row) > COL_EVENING else ""
+        })
+    
+    if tasks_to_cache:
+        await FirestoreDB.save_tasks_matrix(tasks_to_cache)
+        logging.info(f"✅ Cached {len(tasks_to_cache)} tasks in Firestore.")
+        
+    # 2. Sync Instructions
+    instruction_text = await fetch_instructions_from_sheets()
+    if instruction_text:
+        await FirestoreDB.save_global_content("instructions", instruction_text)
+        logging.info("✅ Cached Instructions in Firestore.")
+        
+    return len(tasks_to_cache)
 
-    text = await asyncio.to_thread(_fetch)
+async def fetch_instructions_from_sheets():
+    """Force fetch instructions from GSheets."""
+    all_values = await get_all_values(SHEET_NAME_INSTRUCTIONS)
+    if not all_values: return None
+    
+    text_parts = []
+    # Skip header [Title, Content]
+    for row in all_values[1:]:
+        if len(row) >= 2:
+            title = str(row[0]).strip()
+            content = str(row[1]).strip()
+            if title or content:
+                text_parts.append(f"### {title}\n{content}")
+    
+    return "\n\n".join(text_parts)
+
+async def get_instruction_text():
+    """Get instruction text with Firestore cache as primary source."""
+    from database.firebase_db import FirestoreDB
+    from utils.texts import DEFAULT_INSTRUCTIONS
+    
+    # 1. Try cache
+    try:
+        cached = await FirestoreDB.get_cached_global_content("instructions")
+        if cached:
+            return cached
+    except Exception as e:
+        logging.warning(f"Instruction cache fetch failed: {e}")
+
+    # 2. Fallback to GSheets
+    text = await fetch_instructions_from_sheets()
     if text:
-        _INSTRUCTION_CACHE["text"] = text
-        _INSTRUCTION_CACHE["last_fetch"] = now
+        return text
         
-    return text or INSTRUCTION_TEXT
+    return DEFAULT_INSTRUCTIONS
 
-async def get_task_2_0(day: int, scenario: str) -> dict:
-    """
-    Fetches multi-level task data from NEW_TASK_ENGINE sheet.
-    Supports caching with TTL.
-    """
-    global _TASK_ENGINE_CACHE
+async def get_task_2_0(day: int, scenario: str) -> Optional[Dict[str, Any]]:
+    """Fetch task with Firestore cache as primary source."""
+    from database.firebase_db import FirestoreDB
     
-    # 1. Check Cache
-    now = datetime.now()
-    if (_TASK_ENGINE_CACHE["data"] and _TASK_ENGINE_CACHE["last_fetch"] and 
-        (now - _TASK_ENGINE_CACHE["last_fetch"]).total_seconds() < CACHE_TTL_SECONDS):
-        records = _TASK_ENGINE_CACHE["data"]
-    else:
-        # 2. Fetch fresh data
-        def _fetch_all():
-            client = get_gsheets_client()
-            if not client: return None
-            try:
-                sh = client.open_by_url(SPREADSHEET_URL)
-                worksheet = sh.worksheet("NEW_TASK_ENGINE")
-                # Using get_all_values avoids header naming issues
-                return worksheet.get_all_values()
-            except Exception as e:
-                logging.error(f"Error fetching NEW_TASK_ENGINE: {e}")
-                return None
-        
-        records = await asyncio.to_thread(_fetch_all)
-        if records:
-            _TASK_ENGINE_CACHE["data"] = records
-            _TASK_ENGINE_CACHE["last_fetch"] = now
-            logging.info("🔄 Task Engine Cache Updated (Values API).")
-        else:
-            records = _TASK_ENGINE_CACHE["data"]
+    # 1. Try cache
+    try:
+        cached = await FirestoreDB.get_cached_task(day, scenario)
+        if cached:
+            return cached
+    except Exception as e:
+        logging.warning(f"Cache fetch failed: {e}")
 
-    if not records or len(records) < 2:
-        return None
-
-    # 3. Define Column Indices (based on: Day, Scenario, Day Name, Phase, Theory, Light, Medium, Hard, Guard, Evening)
+    # 2. Fallback to GSheets (slow)
+    logging.info(f"Cache miss for Day {day}, Scenario {scenario}. Falling back dummy to GSheets...")
+    
     COL_DAY = 0
     COL_SCENARIO = 1
     COL_DAY_NAME = 2
@@ -247,17 +279,15 @@ async def get_task_2_0(day: int, scenario: str) -> dict:
     COL_GUARD = 8
     COL_EVENING = 9
 
-    # 4. Find specific row
+    records = await get_all_values(SHEET_NAME_TASK_ENGINE)
+    if not records: return None
+
     target_scenario = str(scenario).lower().strip()
-    # Skip header
     for row in records[1:]:
         if not row: continue
-        
-        # Normalize scenario from sheet
         sheet_scenario = str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip()
         sheet_day = str(row[COL_DAY] if len(row) > COL_DAY else "")
         
-        # Match day and (scenario or "all" or empty)
         if sheet_day == str(day) and (sheet_scenario == target_scenario or sheet_scenario in ["all", ""]):
             return {
                 "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day}",
@@ -269,75 +299,18 @@ async def get_task_2_0(day: int, scenario: str) -> dict:
                 "guard_trap": row[COL_GUARD] if len(row) > COL_GUARD else "",
                 "evening_report": row[COL_EVENING] if len(row) > COL_EVENING else ""
             }
-            
     return None
 
-async def get_evening_question_from_sheets(user_day: int, scenario: str):
+async def get_evening_question_from_sheets(day, scenario="Sovereign"):
     """
-    Fetches questions from EVENING_LOGS sheet based on user_day and scenario.
-    Matches the actual column structure with specific question fields.
+    Get evening questions. 
+    Task Engine 2.0 now includes this in task_data.
     """
-    def _get_questions():
-        client = get_gsheets_client()
-        if not client:
-            logging.error("❌ Google Sheets client failed to initialize (check credentials.json)")
-            raise RuntimeError("Google Sheets API client not initialized. Check credentials.")
-        
-        # 1. Determine week
-        if 1 <= user_day <= 7: week = 1
-        elif 8 <= user_day <= 14: week = 2
-        elif 15 <= user_day <= 21: week = 3
-        elif 22 <= user_day <= 30: week = 4
-        else: week = 1 # Fallback
-        
-        try:
-            sh = client.open_by_url(SPREADSHEET_URL)
-            worksheet = sh.worksheet("EVENING_LOGS")
-            records = worksheet.get_all_records()
-            
-            # 2. Filter by week and scenario (Matching Сценарий (L2) column)
-            target_scenario = str(scenario).lower().strip()
-            matches = [
-                r for r in records 
-                if str(r.get('Неделя')) == str(week) and str(r.get('Сценарий (L2)', '')).lower().strip() == target_scenario
-            ]
-            
-            # 3. Fallback to "Общий" if no scenario-specific questions found
-            if not matches:
-                matches = [
-                    r for r in records 
-                    if str(r.get('Неделя')) == str(week) and str(r.get('Сценарий (L2)', '')).lower().strip() in ["общий", "общее"]
-                ]
-            
-            if not matches:
-                return None
-                
-            # 4. Pick random variant
-            selected_row = random.choice(matches)
-            
-            # 5. Concatenate questions based on actual column names
-            questions = []
-            question_cols = ["1 (Факт)", "2 (Трение)", "3 (Хранитель)", "4 (Инсайт)"]
-            for col in question_cols:
-                q = selected_row.get(f'Вопрос {col}')
-                if q and str(q).strip():
-                    questions.append(str(q).strip())
-            
-            return "\n\n".join(questions) if questions else None
-
-        except Exception as e:
-            err_msg = str(e)
-            logging.error(f"❌ Error getting evening questions: {err_msg}")
-            if "API has not been used" in err_msg or "disabled" in err_msg.lower():
-                raise RuntimeError("Google Sheets API is DISABLED. Please enable it in Cloud Console.")
-            if "permission" in err_msg.lower():
-                raise RuntimeError("Permission denied for Spreadsheet. Check service account access (Editor).")
-            if "not found" in err_msg.lower() and "worksheet" in err_msg.lower():
-                raise RuntimeError("Worksheet 'EVENING_LOGS' not found in the spreadsheet.")
-            raise RuntimeError(f"GSheets evening error: {err_msg}")
-        return None
-
-    return await asyncio.to_thread(_get_questions)
+    task_data = await get_task_2_0(day, scenario)
+    if task_data and task_data.get('evening_report'):
+        return task_data['evening_report']
+    
+    return None
 
 async def delete_user_from_sheets(user_id: int):
     """

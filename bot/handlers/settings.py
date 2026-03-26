@@ -44,6 +44,7 @@ async def admin_settings_handler(message: types.Message):
     builder.button(text="🚀 Запустить Утро", callback_data="trigger_morning")
     builder.button(text="📝 Запросить Отчеты", callback_data="trigger_evening")
     builder.button(text="📊 Итоги Недели", callback_data="trigger_weekly")
+    builder.button(text="🔄 Синхронизировать базу", callback_data="trigger_sync_db")
         
     builder.adjust(2)
     
@@ -210,6 +211,11 @@ async def trigger_manual_callback(callback: types.CallbackQuery):
             await callback.message.answer("📊 Запускаю рассылку итогов недели...")
             await send_group_weekly_report(callback.bot)
             await callback.message.answer("✅ Еженедельный отчет отправлен всем админам.")
+        elif action == "sync_db":
+            await callback.message.answer("🔄 Синхронизирую базу с Google Таблицами...")
+            from utils.gsheets_api import sync_gsheets_to_firestore
+            count = await sync_gsheets_to_firestore()
+            await callback.message.answer(f"✅ База синхронизирована! Обновлено {count} заданий.")
         
         await callback.answer("Запущено!")
         logger.info(f"✅ [ADMIN] Action {action} completed successfully.")

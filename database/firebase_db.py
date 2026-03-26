@@ -138,16 +138,55 @@ class FirestoreDB:
         return users
 
     @staticmethod
-    async def delete_user_and_data(tg_id: int):
-        """Recursively delete user and all their logs (Sync wrapper)."""
-        query = db.collection("users").where("tg_id", "==", tg_id).limit(1)
-        docs = list(query.stream())
-        if docs:
-            doc_id = docs[0].id
-            # Delete logs
-            logs = db.collection("users").document(doc_id).collection("logs").stream()
-            for log in logs:
-                db.collection("users").document(doc_id).collection("logs").document(log.id).delete()
-            # Delete user
-            db.collection("users").document(doc_id).delete()
-            logging.info(f"🗑 Deleted user {tg_id} and all related logs.")
+    async def save_tasks_matrix(tasks_list: List[Dict[str, Any]]):
+        """Overwrite the tasks_matrix collection with fresh data."""
+        batch = db.batch()
+        # Delete existing tasks first (simplified - limit 500)
+        old_tasks = db.collection("tasks_matrix").limit(500).stream()
+        for doc in old_tasks:
+            batch.delete(doc.reference)
+        
+        # Add new tasks
+        for task in tasks_list:
+            doc_id = f"day_{task['day']}_{task.get('scenario', 'all')}"
+            doc_ref = db.collection("tasks_matrix").document(doc_id)
+            batch.set(doc_ref, task)
+        
+        batch.commit()
+        # Update last sync timestamp
+        db.collection("settings").document("sync_info").set({
+            "tasks_last_sync": datetime.now(timezone.utc)
+        }, merge=True)
+
+    @staticmethod
+    async def get_cached_task(day: int, scenario: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a task from the Firestore cache."""
+        target_scenario = str(scenario).lower().strip()
+        doc_id = f"day_{day}_{target_scenario}"
+        doc = db.collection("tasks_matrix").document(doc_id).get()
+        if doc.exists:
+            return doc.to_dict()
+        
+        # Fallback to "all" scenario for that day
+        doc_id_all = f"day_{day}_all"
+        doc_all = db.collection("tasks_matrix").document(doc_id_all).get()
+        if doc_all.exists:
+            return doc_all.to_dict()
+            
+        return None
+
+    @staticmethod
+    async def save_global_content(key: str, content: Any):
+        """Save specialized content (instructions, questions) to cache."""
+        db.collection("global_cache").document(key).set({
+            "content": content,
+            "updated_at": datetime.now(timezone.utc)
+        })
+
+    @staticmethod
+    async def get_cached_global_content(key: str) -> Optional[Any]:
+        """Retrieve specialized content from cache."""
+        doc = db.collection("global_cache").document(key).get()
+        if doc.exists:
+            return doc.to_dict().get("content")
+        return None
