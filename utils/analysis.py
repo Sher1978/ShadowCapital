@@ -46,21 +46,27 @@ SYSTEM PROMPT: SHADOW ADVISOR ENGINE (Ver. 3.0)
 - L1 (Теневое качество): {quality_name}
 - L2 (Сценарий Спринта): {scenario_type} (Sovereign, Expansion, Vitality, Architect)
 
+ЛОВУШКА ХРАНИТЕЛЯ (GUARD TRAP) НА СЕГОДНЯ:
+{guard_trap}
+
 ЗАДАНИЕ:
 При получении отчета клиента (ниже), проведи аудит и выдай ответ в формате JSON.
 
 ФОРМУЛА ОБРАТНОЙ СВЯЗИ (С.И.К.):
 В поле `feedback_to_client` ТЫ ОБЯЗАН использовать структуру:
 1. SCAN (Скан): Холодная фиксация фактов отчета.
-2. INSIGHT (Инсайт): Анализ проявления L1 (Теневого качества) в контексте L2 (Сценария) и дешифровка голоса Хранителя.
+2. INSIGHT (Инсайт): Анализ проявления L1 (Теневого качества) в контексте L2 (Сценария) и дешифровка голоса Хранителя. **ОСОБОЕ ВНИМАНИЕ на "Ловушку Хранителя": если видишь эти маркеры в отчете — укажи на них прямо.**
 3. CAPITALIZATION (Капитализация): Как это проявление снижает Индекс Трения (SFI) и ведет к росту бизнеса или личной эффективности.
 
 Ответ дай СТРОГО в формате JSON:
 {{
   "is_sabotage": true/false,
-  "sfi_score": float (0.0 - 1.0, где 0.0 — отсутствие трения, 1.0 — полный саботаж),
+  "level": integer (1-3, где 3 — глубокая проработка, 1 — поверхностно),
+  "status": integer (1 — успех/выполнено, 0 — саботаж/не выполнено),
+  "discomfort": integer (0-10, уровень дискомфорта/сопротивления),
+  "sfi_score": float (0.0 - 1.0, расчетный индекс трения),
   "feedback_to_client": "Твой ответ по формуле С.И.К. (Скан, Инсайт, Капитализация)",
-  "last_insight": "Краткая выжимка главного инсайта для дашборда (1 предложение)",
+  "last_insight": "Краткая выжимка главного инсайта для дашборда (1 sentence)",
   "internal_analysis": "Внутренний аудит для админов (L1->L2, маркеры саботажа)"
 }}
 
@@ -68,7 +74,7 @@ SYSTEM PROMPT: SHADOW ADVISOR ENGINE (Ver. 3.0)
 "{content}"
 """
 
-async def analyze_sabotage(content: str, quality_name: str, scenario_type: str = "N/A") -> dict:
+async def analyze_sabotage(content: str, quality_name: str, scenario_type: str = "N/A", guard_trap: str = "") -> dict:
     """
     Analyzes shadow log content for markers using Gemini 1.5 Pro (preferred for context) or Flash.
     """
@@ -83,6 +89,7 @@ async def analyze_sabotage(content: str, quality_name: str, scenario_type: str =
         knowledge=get_ai_knowledge(),
         quality_name=quality_name,
         scenario_type=scenario_type,
+        guard_trap=guard_trap or "Сегодня нет специфической ловушки. Ищи общие маркеры сопротивления.",
         content=content
     )
 
@@ -94,6 +101,9 @@ async def analyze_sabotage(content: str, quality_name: str, scenario_type: str =
             data = json.loads(response.text)
             return {
                 "is_sabotage": data.get("is_sabotage", False),
+                "level": data.get("level", 2),
+                "status": data.get("status", 1),
+                "discomfort": data.get("discomfort", 5),
                 "sfi_score": data.get("sfi_score", 0.5),
                 "feedback_to_client": data.get("feedback_to_client", ""),
                 "last_insight": data.get("last_insight", ""),
@@ -124,6 +134,9 @@ async def analyze_sabotage(content: str, quality_name: str, scenario_type: str =
 
     return {
         "is_sabotage": False, 
+        "level": 2,
+        "status": 1,
+        "discomfort": 5,
         "sfi_score": 0.5, 
         "feedback_to_client": "Временно недоступен анализ ИИ.", 
         "internal_analysis": "Error in LLM call"

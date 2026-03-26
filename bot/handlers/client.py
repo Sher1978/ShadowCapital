@@ -9,9 +9,11 @@ import logging
 from utils.transcription import transcribe_voice
 from utils.analysis import analyze_sabotage
 from utils.alerts import send_red_alert
-from utils.gsheets_api import sync_user_to_sheets
+from utils.gsheets_api import sync_user_to_sheets, sync_sfi_analytics
+from utils.sfi_logic import calculate_daily_sfi, get_sfi_zone
 from config import ADMIN_IDS, MENU_KEYWORDS, is_admin
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
+import random
 
 client_router = Router()
 
@@ -406,7 +408,6 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     role = user.get('role', 'none')
     logging.info(f"📩 [LOG] User {message.from_user.id} (Role: {role}) sent log: {message.text or 'VOICE'}")
 
-    # Allow admins to test logs, or just clients
     if role not in ["client", "admin"]:
         await message.answer(f"⚠️ Твой аккаунт ({role}) не активирован для сдачи отчетов. Обратись к администратору.")
         return
@@ -417,26 +418,20 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     
     if is_voice:
         try:
-            # We have a voice/audio message
             file_id = message.voice.file_id if message.voice else message.audio.file_id
             await message.answer("🔊 Обрабатываю твое голосовое сообщение...")
             
-            # Download file to /tmp (Cloud Run only allows writes to /tmp)
             import tempfile
             temp_dir = tempfile.gettempdir()
             perm_path = os.path.join(temp_dir, f"{file_id}.ogg")
             
             file = await bot.get_file(file_id)
             await bot.download_file(file.file_path, perm_path)
-            
-            # Transcribe
             content = await transcribe_voice(perm_path)
             
-            # Cleanup
             if os.path.exists(perm_path):
                 os.remove(perm_path)
             
-            # Transcription Confirmation UI
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             builder = InlineKeyboardBuilder()
             builder.button(text="✅ Отправить", callback_data="confirm_log")
@@ -463,10 +458,14 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     if not content:
         content = "Empty Log"
 
-    # Show processing status for text-only logs (voice already shows it)
+    await process_shadow_log(message, bot, user, content, is_voice, file_id)
+
+async def process_shadow_log(message: types.Message, bot: Bot, user: dict, content: str, is_voice: bool, file_id: str = None):
+    """
+    Core logic for processing a shadow log (text or confirmed voice).
+    """
     status_msg = await message.answer("⌛️ Анализирую твой отчет...")
 
-    # Analyze for sabotage
     from utils.analysis import analyze_sabotage
     analysis = await analyze_sabotage(
         content, 
@@ -474,9 +473,67 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
         scenario_type=user.get('scenario_type', "N/A")
     )
     
-    # Remove status message after analysis
     try: await status_msg.delete()
     except: pass
+
+    # --- SFI LOGIC ---
+    from utils.timezone_utils import get_now_in_tz
+    user_tz = user.get('timezone', 'UTC+7')
+    now_user = get_now_in_tz(user_tz)
+    
+    # Fetch Task Engine 2.0 data for Guard Trap and Level
+    from utils.gsheets_api import get_task_2_0
+    start_date = user.get('sprint_start_date') or user.get('created_at')
+    if isinstance(start_date, str):
+        try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except: start_date = datetime.now(timezone.utc)
+    
+    day = (datetime.now(timezone.utc) - start_date).days + 1
+    task_data = await get_task_2_0(day, user.get('scenario_type', 'Sovereign'))
+    guard_trap = task_data.get('guard_trap', '') if task_data else ""
+    
+    # Re-run analysis with Guard Trap if available
+    if guard_trap:
+        analysis = await analyze_sabotage(
+            content, 
+            quality_name=user.get('target_quality_l1', "Unknown"),
+            scenario_type=user.get('scenario_type', "N/A"),
+            guard_trap=guard_trap
+        )
+
+    penalty = 0
+    if now_user.time() > time(20, 0):
+        penalty = 5
+
+    # L (Level) comes from user choice
+    l_val = user.get('current_day_level', 2) # Default to 2 if not chosen
+    
+    math_sfi = calculate_daily_sfi(
+        level=l_val,
+        status=analysis.get('status', 1),
+        penalty=penalty
+    )
+    s_zone = get_sfi_zone(math_sfi)
+
+    def get_shadow_insight(zone):
+        insights_path = "docs/Shadow_Insights.md"
+        if not os.path.exists(insights_path):
+            return "✅ Отчет принят."
+        try:
+            with open(insights_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            zone_headers = {"RED": "## 🔴 КРАСНАЯ ЗОНА", "YELLOW": "## 🟡 ЖЕЛТАЯ ЗОНА", "GREEN": "## 🟢 ЗЕЛЕНАЯ ЗОНА"}
+            header = zone_headers.get(zone)
+            if not header: return "Отчет принят."
+            sections = content.split("##")
+            for sec in sections:
+                if sec.strip().startswith(header.replace("##", "").strip()):
+                    lines = [line.strip("- ").strip() for line in sec.split("\n") if line.strip().startswith("-")]
+                    if lines: return random.choice(lines)
+            return "Отчет принят."
+        except: return "Отчет принят."
+
+    insight_msg = get_shadow_insight(s_zone)
 
     log_data = {
         "content": content,
@@ -484,62 +541,113 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
         "file_id": file_id,
         "local_file_path": None,
         "is_sabotage": analysis.get("is_sabotage", False),
-        "sfi_score": analysis.get("sfi_score", 0.5),
+        "sfi_score": math_sfi,
+        "llm_sfi": analysis.get("sfi_score", 0.5),
+        "level": analysis.get('level', 2),
+        "status": analysis.get('status', 1),
+        "discomfort": analysis.get('discomfort', 5),
+        "penalty": penalty,
         "feedback_to_client": analysis.get("feedback_to_client", ""),
         "analysis_reason": analysis.get("internal_analysis", "")
     }
     log_id = await FirestoreDB.add_log(user['id'], log_data)
     
-    # Update User Dashboard Stats
+    previous_logs = await FirestoreDB.get_logs(user['id'], limit=5)
+    
+    if len(previous_logs) >= 3:
+        sfi_history = [l.get('sfi_score', 0.5) for l in previous_logs[:3]]
+        if len(sfi_history) == 3 and sfi_history[0] < sfi_history[1] < sfi_history[2]:
+            await message.answer(f"✨ {hbold('Shadow Growth Detected!')} Вижу, как твое сопротивление тает. Ты в потоке.")
+
+    if math_sfi > 70:
+        for admin_id in ADMIN_IDS:
+             try:
+                 await bot.send_message(admin_id, f"🚩 {hbold('SFI ALERT')}: {user.get('full_name')} -> {math_sfi}%")
+             except: pass
+
+    if len(previous_logs) >= 2:
+        sfi_2day = [l.get('sfi_score', 0.5) for l in previous_logs[:2]]
+        if all(s > 80 for s in sfi_2day):
+            for admin_id in ADMIN_IDS:
+                try:
+                    await bot.send_message(admin_id, f"🚨 {hbold('EMERGENCY SOS')}: {user.get('full_name')} (>80% 2 дня).")
+                except: pass
+            await message.answer(f"🆘 {hbold('Внимание:')} Твой уровень сопротивления критичен. Куратор назначил тебе экстренный созвон.")
+
     update_data = {
-        "sfi_index": analysis.get("sfi_score", 0.5),
+        "sfi_index": math_sfi / 100.0,
         "last_insight": analysis.get("last_insight", "")
     }
     
-    # Red Flag Logic
     if analysis.get("is_sabotage", False):
-        red_flags = user.get('red_flags_count', 0) + 1
-        update_data["red_flags_count"] = red_flags
-        
-        if red_flags >= 3:
-            # Notify admin about critical sabotage level
-            for admin_id in ADMIN_IDS:
-                try:
-                    await bot.send_message(
-                        admin_id, 
-                        f"🚨 {hbold('CRITICAL RED ALERT')}: Клиент {user.get('full_name')} ({user.get('tg_id')}) набрал {red_flags} флагов саботажа!\n"
-                        f"Требуется прямое вмешательство."
-                    )
-                except: pass
-        
-        # Send Red Alert to Admin
-        await send_red_alert(
-            bot, 
-            user.get('full_name'), 
-            user.get('tg_id'), 
-            "SABOTAGE", 
-            analysis.get("internal_analysis", "N/A"),
-            content
-        )
+        update_data["red_flags_count"] = user.get('red_flags_count', 0) + 1
+        await send_red_alert(bot, user.get('full_name'), user.get('tg_id'), "SABOTAGE", analysis.get("internal_analysis", ""), content)
     
     await FirestoreDB.update_user(user['id'], update_data)
-
-    # Sync update to Google Sheets
     await sync_user_to_sheets({
         "user_id": user.get('tg_id'),
         "name": user.get('full_name'),
         "target_quality": user.get('target_quality_l1'),
         "scenario": user.get('scenario_type'),
         "red_flags": update_data.get("red_flags_count", user.get('red_flags_count', 0)),
-        "sfi_index": update_data["sfi_index"],
+        "sfi_index": math_sfi / 100.0,
         "last_insight": update_data["last_insight"]
     })
+    
+    await sync_sfi_analytics({
+        "user_id": user.get('tg_id'), "name": user.get('full_name'),
+        "date": now_user.strftime("%Y-%m-%d"), "level": analysis.get('level'),
+        "status": analysis.get('status'), "discomfort": analysis.get('discomfort'),
+        "penalty": penalty, "sfi_score": math_sfi, "zone": s_zone
+    })
         
-    # Notify Admin
     await notify_admin_of_report(bot, user, content, analysis, log_id)
+    
+    # Clear level after report
+    await FirestoreDB.update_user(user['id'], {"current_day_level": 2})
+    
+    await message.answer(f"{insight_msg}\n\nПожалуйста, дождись комментария Администратора.")
+
+@client_router.callback_query(F.data.startswith("task_level:"))
+async def task_level_selection_handler(callback: types.CallbackQuery, bot: Bot):
+    level_key = callback.data.split(":")[1] # light, medium, hard
+    level_map = {"light": 1, "medium": 2, "hard": 3}
+    l_val = level_map.get(level_key, 2)
+    
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user: return
+    
+    # Update user choice
+    await FirestoreDB.update_user(user['id'], {"current_day_level": l_val})
+    
+    # Fetch task text
+    from utils.gsheets_api import get_task_2_0
+    from utils.timezone_utils import get_now_in_tz
+    user_tz = user.get('timezone', 'UTC+7')
+    now_user = get_now_in_tz(user_tz)
+    
+    start_date = user.get('sprint_start_date') or user.get('created_at')
+    if isinstance(start_date, str):
+        try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except: start_date = datetime.now(timezone.utc)
         
-    # Send AI auditor feedback back to user
-    await message.answer("✅ Отчет принят. Спасибо! Пожалуйста, дождись комментария Администратора.")
+    day = (datetime.now(timezone.utc) - start_date).days + 1
+    task_data = await get_task_2_0(day, user.get('scenario_type', 'Sovereign'))
+    
+    if not task_data:
+        await callback.answer("Ошибка: данные задания не найдены.")
+        return
+        
+    task_text = task_data.get(f"task_{level_key}")
+    level_names = {"light": "◽️ Light", "medium": "🔶 Medium", "hard": "🔥 Hard"}
+    
+    await callback.message.edit_text(
+        f"✅ {hbold('Твой выбор принят!')}\n"
+        f"Уровень: {hbold(level_names[level_key])}\n\n"
+        f"🎯 {hbold('Задание:')}\n{task_text}\n\n"
+        f"Удачи! Жду твой отчет вечером."
+    )
+    await callback.answer()
 
 @client_router.callback_query(F.data == "confirm_log")
 async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
@@ -553,67 +661,10 @@ async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, 
         await state.clear()
         return
 
-    await callback.message.edit_text("⌛️ Анализирую твой отчет...")
-    
-    # We call the core log processing logic. 
-    # To avoid duplication, we could refactor log_handler to a shared function.
-    # For now, I'll extract it or just repeat since it's short.
-    
     user = await FirestoreDB.get_user(callback.from_user.id)
     if not user: return
     
-    # --- CORE ANALYSIS LOGIC ---
-    from utils.analysis import analyze_sabotage
-    analysis = await analyze_sabotage(
-        content, 
-        quality_name=user.get('target_quality_l1', "Unknown"),
-        scenario_type=user.get('scenario_type', "N/A")
-    )
-
-    log_data = {
-        "content": content,
-        "is_voice": is_voice,
-        "file_id": file_id,
-        "local_file_path": None,
-        "is_sabotage": analysis.get("is_sabotage", False),
-        "sfi_score": analysis.get("sfi_score", 0.5),
-        "feedback_to_client": analysis.get("feedback_to_client", ""),
-        "analysis_reason": analysis.get("internal_analysis", "")
-    }
-    log_id = await FirestoreDB.add_log(user['id'], log_data)
-    
-    update_data = {
-        "sfi_index": analysis.get("sfi_score", 0.5),
-        "last_insight": analysis.get("last_insight", "")
-    }
-    
-    if analysis.get("is_sabotage", False):
-        red_flags = user.get('red_flags_count', 0) + 1
-        update_data["red_flags_count"] = red_flags
-        
-        for admin_id in ADMIN_IDS:
-             try:
-                 if red_flags >= 3:
-                     await bot.send_message(admin_id, f"🚨 {hbold('CRITICAL RED ALERT')}: {user.get('full_name')} ({user.get('tg_id')}) [{red_flags}/3]")
-                 await send_red_alert(bot, user.get('full_name'), user.get('tg_id'), "SABOTAGE", analysis.get("internal_analysis", ""), content)
-             except: pass
-
-    await FirestoreDB.update_user(user['id'], update_data)
-    
-    await sync_user_to_sheets({
-        "user_id": user.get('tg_id'),
-        "name": user.get('full_name'),
-        "target_quality": user.get('target_quality_l1'),
-        "scenario": user.get('scenario_type'),
-        "red_flags": update_data.get("red_flags_count", user.get('red_flags_count', 0)),
-        "sfi_index": update_data["sfi_index"],
-        "last_insight": update_data["last_insight"]
-    })
-    
-    # Notify Admin
-    await notify_admin_of_report(bot, user, content, analysis, log_id)
-    
-    await callback.message.edit_text("✅ Отчет принят. Спасибо! Пожалуйста, дождись комментария Администратора.")
+    await process_shadow_log(callback.message, bot, user, content, is_voice, file_id)
     await state.clear()
     await callback.answer("Отправлено!")
 

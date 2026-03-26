@@ -10,6 +10,13 @@ from config import GOOGLE_SHEET_URL as SPREADSHEET_URL
 # Scope for Google Sheets and Drive
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
+# --- Task Engine 2.0 Cache ---
+_TASK_ENGINE_CACHE = {
+    "data": None,
+    "last_fetch": None
+}
+CACHE_TTL_SECONDS = 3600 # 1 hour
+
 def get_gsheets_client():
     """
     Returns a fresh gspread client using credentials.
@@ -140,9 +147,65 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
             if "not found" in err_msg.lower() and "worksheet" in err_msg.lower():
                 raise RuntimeError("Worksheet 'CONTENT_TIMELINE' not found in the spreadsheet.")
             raise RuntimeError(f"GSheets error: {err_msg}")
+    return await asyncio.to_thread(_get_task)
+
+async def get_task_2_0(day: int, scenario: str):
+    """
+    Fetches multi-level task data from NEW_TASK_ENGINE sheet.
+    Supports caching with TTL.
+    """
+    global _TASK_ENGINE_CACHE
+    
+    # 1. Check Cache
+    now = datetime.now()
+    if (_TASK_ENGINE_CACHE["data"] and _TASK_ENGINE_CACHE["last_fetch"] and 
+        (now - _TASK_ENGINE_CACHE["last_fetch"]).total_seconds() < CACHE_TTL_SECONDS):
+        records = _TASK_ENGINE_CACHE["data"]
+    else:
+        # 2. Fetch fresh data
+        def _fetch_all():
+            client = get_gsheets_client()
+            if not client: return None
+            try:
+                sh = client.open_by_url(SPREADSHEET_URL)
+                worksheet = sh.worksheet("NEW_TASK_ENGINE")
+                # Using get_all_records maps headers to dict keys
+                return worksheet.get_all_records()
+            except Exception as e:
+                logging.error(f"Error fetching NEW_TASK_ENGINE: {e}")
+                return None
+        
+        records = await asyncio.to_thread(_fetch_all)
+        if records:
+            _TASK_ENGINE_CACHE["data"] = records
+            _TASK_ENGINE_CACHE["last_fetch"] = now
+            logging.info("🔄 Task Engine Cache Updated.")
+        else:
+            # If fetch fails, try using stale cache
+            records = _TASK_ENGINE_CACHE["data"]
+
+    if not records:
         return None
 
-    return await asyncio.to_thread(_get_task)
+    # 3. Find specific row
+    target_scenario = str(scenario).lower().strip()
+    for row in records:
+        # Normalize scenario from sheet
+        sheet_scenario = str(row.get('Scenario', '')).lower().strip()
+        sheet_day = str(row.get('Day', ''))
+        
+        if sheet_day == str(day) and (sheet_scenario == target_scenario or sheet_scenario == "all"):
+            return {
+                "day_name": row.get('Day Name', f"День {day}"),
+                "theory": row.get('Theory', ''),
+                "task_light": row.get('Task_LIGHT', ''),
+                "task_medium": row.get('Task_MEDIUM', ''),
+                "task_hard": row.get('Task_HARD', ''),
+                "guard_trap": row.get('Guard_Trap', ''),
+                "evening_report": row.get('Evening_Report', '')
+            }
+            
+    return None
 
 async def get_evening_question_from_sheets(user_day: int, scenario: str):
     """
@@ -236,3 +299,41 @@ async def delete_user_from_sheets(user_id: int):
             raise RuntimeError(f"GSheets delete error: {err_msg}")
 
     await asyncio.to_thread(_delete)
+async def sync_sfi_analytics(user_data: dict):
+    """
+    Syncs detailed SFI metrics to the SFI_Analytics sheet.
+    Expected keys: user_id, name, date, level, status, discomfort, penalty, sfi_score, zone
+    """
+    def _sync():
+        client = get_gsheets_client()
+        if not client: return
+        
+        try:
+            sh = client.open_by_url(SPREADSHEET_URL)
+            try:
+                worksheet = sh.worksheet("SFI_Analytics")
+            except gspread.WorksheetNotFound:
+                worksheet = sh.add_worksheet(title="SFI_Analytics", rows="1000", cols="10")
+                worksheet.append_row([
+                    "User_ID", "Имя", "Дата", "Level (1-3)", 
+                    "Status (0-1)", "Discomfort (0-10)", "Penalty", 
+                    "SFI_Score (%)", "Zone", "Timestamp"
+                ])
+            
+            row_data = [
+                str(user_data['user_id']),
+                user_data.get('name', ''),
+                user_data.get('date', datetime.now().strftime("%Y-%m-%d")),
+                user_data.get('level', ''),
+                user_data.get('status', ''),
+                user_data.get('discomfort', ''),
+                user_data.get('penalty', 0),
+                f"{user_data.get('sfi_score', 0)}%",
+                user_data.get('zone', ''),
+                datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            ]
+            worksheet.append_row(row_data)
+        except Exception as e:
+            logging.error(f"Error syncing SFI analytics: {e}")
+
+    await asyncio.to_thread(_sync)

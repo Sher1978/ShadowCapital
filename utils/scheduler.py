@@ -8,8 +8,8 @@ import logging
 import re
 from config import ADMIN_IDS
 from utils.analysis import generate_weekly_briefing, generate_group_weekly_summary
-from utils.gsheets_api import get_daily_task_from_sheets, get_evening_question_from_sheets
-from aiogram.utils.markdown import hbold
+from utils.gsheets_api import get_daily_task_from_sheets, get_evening_question_from_sheets, get_task_2_0
+from aiogram.utils.markdown import hbold, hitalic
 
 logger = logging.getLogger(__name__)
 
@@ -126,17 +126,23 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
             
             day = (now - start_date).days + 1
             try:
-                task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
-                if not task_body:
-                    task_body = "Продолжай интеграцию твоего качества. Хранитель сегодня спокоен."
+                task_data = await get_task_2_0(day, u.get('scenario_type') or "Sovereign")
+                if not task_data:
+                    # Fallback to old method or default
+                    task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
+                    theory = "Продолжаем погружение в твое теневое качество."
+                    day_name = f"День {day}"
+                else:
+                    theory = task_data['theory']
+                    day_name = task_data['day_name']
+                    task_body = None # We will send tasks after selection
             except RuntimeError as re:
                 err_msg = f"⚠️ [GSheets Error] Could not fetch morning task: {re}"
                 logger.error(f"❌ {err_msg}")
-                # Notify all admins once and abort the entire mailing
                 for admin_id in ADMIN_IDS:
                     try: await bot.send_message(admin_id, err_msg)
                     except: pass
-                break # Abort the loop as requested
+                break
             
             import random
             full_name = u.get('full_name', '')
@@ -144,27 +150,41 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
             name_suffix = f", {first_name}" if first_name else ""
 
             greetings = [
-                f"🌅 Доброе утро{name_suffix}! Сегодня идеальный день, чтобы стать еще сильнее.",
-                f"☀️ С новым днем{name_suffix}! Твой прогресс вдохновляет, продолжаем движение.",
-                f"✨ Привет{name_suffix}! Сегодня — еще один шаг к твоему идеальному качеству. Вперед!",
-                f"🔥 Прекрасное утро{name_suffix}, чтобы бросить вызов Хранителю и победить.",
-                f"🌟 Доброе утро{name_suffix}! Твоя энергия сегодня — ключ к новым вершинам."
+                f"🌅 Доброе утро{name_suffix}!",
+                f"☀️ С новым днем{name_suffix}!",
+                f"✨ Привет{name_suffix}!",
+                f"🔥 Прекрасное утро{name_suffix}!",
+                f"🌟 Доброе утро{name_suffix}!"
             ]
-            text = (
-                f"{random.choice(greetings)}\n\n"
-                f"💎 {hbold(u.get('target_quality_l1'))}: Утренний Импульс (День {day})\n\n"
-                f"{task_body}\n\n"
-                f"Ты можешь сдать отчет в любое время в течение дня по кнопке ниже или дождаться вечернего запроса."
-            )
+            
+            if task_body:
+                # Fallback style
+                text = (
+                    f"{random.choice(greetings)}\n\n"
+                    f"💎 {hbold(u.get('target_quality_l1'))}: {day_name}\n\n"
+                    f"{task_body}"
+                )
+                from aiogram.utils.keyboard import InlineKeyboardBuilder
+                builder = InlineKeyboardBuilder()
+                builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
+                builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
+                builder.adjust(1)
+            else:
+                # Task Engine 2.0 Style
+                text = (
+                    f"{random.choice(greetings)}\n\n"
+                    f"💎 {hbold(u.get('target_quality_l1'))}: {day_name}\n\n"
+                    f"{theory or 'Пора приступать к работе.'}\n\n"
+                    f"Выбери уровень сложности на сегодня:"
+                )
+                from aiogram.utils.keyboard import InlineKeyboardBuilder
+                builder = InlineKeyboardBuilder()
+                builder.button(text="◽️ Light", callback_data="task_level:light")
+                builder.button(text="🔶 Medium", callback_data="task_level:medium")
+                builder.button(text="🔥 Hard", callback_data="task_level:hard")
+                builder.adjust(3)
             
             last_text = text
-            from aiogram.utils.keyboard import InlineKeyboardBuilder
-            builder = InlineKeyboardBuilder()
-            builder.button(text="✅ Готов к выполнению", callback_data="morning_confirm")
-            builder.button(text="📝 Сдать отчет сейчас", callback_data="start_early_log")
-            builder.button(text="⚙️ Изменить время доставки", callback_data="edit_delivery_times")
-            builder.adjust(1)
-            
             await bot.send_message(u_id, text, reply_markup=builder.as_markup())
             await FirestoreDB.update_user(u['id'], {"last_morning_sent": now})
             logger.info(f"✅ [SCHEDULER] Morning impulse sent to {u_id}")
@@ -213,11 +233,14 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
                 
             day = (now - start_date).days + 1
             try:
-                questions_text = await get_evening_question_from_sheets(day, u.get('scenario_type') or "Sovereign")
+                task_data = await get_task_2_0(day, u.get('scenario_type') or "Sovereign")
+                if task_data and task_data.get('evening_report'):
+                    questions_text = task_data['evening_report']
+                else:
+                    questions_text = await get_evening_question_from_sheets(day, u.get('scenario_type') or "Sovereign")
             except RuntimeError as re:
                 err_msg = f"⚠️ [GSheets Error] Could not fetch evening questions: {re}"
                 logger.error(f"❌ {err_msg}")
-                # Notify all admins once and abort
                 for admin_id in ADMIN_IDS:
                     try: await bot.send_message(admin_id, err_msg)
                     except: pass
@@ -233,7 +256,8 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
             
             text = (
                 f"🌙 {hbold('Пришло время для Вечернего Отчета.')} (День {day})\n\n"
-                f"{questions_text}"
+                f"{questions_text}\n\n"
+                f"🎤 Пришли текст или запиши голосовое сообщение."
             )
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             builder = InlineKeyboardBuilder()
