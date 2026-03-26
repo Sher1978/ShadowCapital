@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hbold, hitalic
 from database.firebase_db import FirestoreDB
 from bot.keyboards.builders import get_main_keyboard
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 import os
 import logging
 from utils.transcription import transcribe_voice
@@ -637,13 +638,59 @@ async def task_level_selection_handler(callback: types.CallbackQuery, bot: Bot):
     phase_text = f"{hitalic(task_data.get('phase'))}\n\n" if task_data.get('phase') else ""
     level_names = {"light": "◽️ Light", "medium": "🔶 Medium", "hard": "🔥 Hard"}
     
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔄 Сменить уровень", callback_data="change_task_level")
+    builder.adjust(1)
+    
     await callback.message.edit_text(
         f"✅ {hbold('Твой выбор принят!')}\n"
         f"Уровень: {hbold(level_names[level_key])}\n\n"
         f"{phase_text}"
         f"🎯 {hbold('Задание:')}\n{task_text}\n\n"
-        f"Удачи! Жду твой отчет вечером."
+        f"Удачи! Жду твой отчет вечером.",
+        reply_markup=builder.as_markup()
     )
+    await callback.answer()
+
+@client_router.callback_query(F.data == "change_task_level")
+async def task_level_change_request_handler(callback: types.CallbackQuery, bot: Bot):
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user: return
+    
+    from utils.gsheets_api import get_task_2_0
+    from utils.timezone_utils import get_now_in_tz
+    
+    start_date = user.get('sprint_start_date') or user.get('created_at')
+    if isinstance(start_date, str):
+        try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        except: start_date = datetime.now(timezone.utc)
+        
+    day = (datetime.now(timezone.utc) - start_date).days + 1
+    task_data = await get_task_2_0(day, user.get('scenario_type', 'Sovereign'))
+    
+    if not task_data:
+        await callback.answer("Ошибка: данные задания не найдены.")
+        return
+        
+    theory = task_data.get('theory', 'Пора приступать к работе.')
+    day_name = task_data.get('day_name', f"День {day}")
+    quality = user.get('target_quality_l1') or user.get('target_quality') or 'Проработка Тени'
+    phase_text = f"{hitalic(task_data.get('phase'))}\n\n" if task_data.get('phase') else ""
+    
+    text = (
+        f"💎 {hbold(quality)}: {day_name}\n\n"
+        f"{phase_text}"
+        f"{theory}\n\n"
+        f"Выбери уровень сложности на сегодня:"
+    )
+    
+    builder = InlineKeyboardBuilder()
+    builder.button(text="◽️ Light", callback_data="task_level:light")
+    builder.button(text="🔶 Medium", callback_data="task_level:medium")
+    builder.button(text="🔥 Hard", callback_data="task_level:hard")
+    builder.adjust(3)
+    
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
     await callback.answer()
 
 @client_router.callback_query(F.data == "confirm_log")
