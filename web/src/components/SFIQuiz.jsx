@@ -127,7 +127,10 @@ export default function SFIQuiz({ onComplete }) {
               {[...Array(11)].map((_, i) => (
                 <button
                   key={i}
-                  className={`h-12 border border-metal rounded transition-all hover:bg-gold-glow ${answers[currentQuestion.id] === i ? 'bg-gold border-gold text-black' : ''}`}
+                  className={`h-12 border border-metal rounded transition-all active:scale-95 flex items-center justify-center font-bold text-xs
+                    ${answers[currentQuestion.id] === i 
+                      ? 'bg-gold border-gold text-black shadow-[0_0_15px_rgba(212,175,55,0.4)]' 
+                      : 'hover:bg-white/5 text-dim'}`}
                   onClick={() => handleAnswer(i)}
                 >
                   {i}

@@ -190,3 +190,13 @@ class FirestoreDB:
         if doc.exists:
             return doc.to_dict().get("content")
         return None
+
+    @staticmethod
+    async def get_sfi_lead(uuid: str) -> Optional[Dict[str, Any]]:
+        """Fetch a specific SFI lead result from the web diagnostic."""
+        doc = db.collection("sfi_leads").document(uuid).get()
+        if doc.exists:
+            data = doc.to_dict()
+            data['id'] = doc.id
+            return data
+        return None

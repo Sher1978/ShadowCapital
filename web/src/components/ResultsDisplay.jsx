@@ -1,87 +1,71 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import confetti from 'canvas-confetti';
-import { Send, Download, ExternalLink } from 'lucide-react';
 
-export default function ResultsDisplay({ result, onRestart }) {
-  const { sfi_score, archetype, insight, uuid } = result;
+const ResultsDisplay = ({ result, onRestart }) => {
+  const { sfi_score, archetype, scores, insight, uuid } = result;
   
-  // Interpretation based on SFI
-  const sfiLabel = sfi_score < 30 ? "Shadow Master" : sfi_score < 70 ? "Shadow Integrated" : "Shadow Seeker";
-  const sfiColor = sfi_score < 30 ? "#03dac6" : sfi_score < 70 ? "#bb86fc" : "#ff4b2b";
-
-  useEffect(() => {
-    if (sfi_score < 50) {
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#d4af37', '#ffffff'] });
-    }
-  }, [sfi_score]);
+  // Create deep link for Telegram
+  const botUsername = "Shadow_Guardian_bot"; // Update this with actual bot username if it changes
+  const telegramDeepLink = `https://t.me/${botUsername}?start=${uuid}`;
 
   return (
     <motion.div 
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="glass-card max-w-[800px]"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: "easeOut" }}
+      className="results-container glass-card"
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-        {/* Left Column: SFI Score */}
-        <div className="flex flex-col items-center">
-          <div className="gold-text mb-4">Your Shadow Profile</div>
-          <motion.div 
-            initial={{ rotate: -90, opacity: 0 }}
-            animate={{ rotate: 0, opacity: 1 }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            className="relative w-48 h-48 flex items-center justify-center border-4 rounded-full"
-            style={{ borderColor: sfiColor, boxShadow: `0 0 30px ${sfiColor}44` }}
-          >
-            <div className="text-5xl font-bold">{sfi_score}%</div>
-            <div className="absolute -bottom-4 bg-black border px-3 py-1 text-[10px] gold-text rounded-full" style={{ borderColor: sfiColor }}>
-              SFI INDEX
-            </div>
-          </motion.div>
-          
-          <h2 className="mt-12 mb-0" style={{ color: sfiColor }}>{sfiLabel}</h2>
-          <div className="text-dim text-sm font-mono mt-2 uppercase tracking-widest">{archetype} Archetype</div>
-          
-          <div className="bg-white/5 border border-white/10 p-4 rounded-xl mt-8 w-full">
-            <div className="text-xs gold-text mb-2">Technical Insight:</div>
-            <p className="text-sm italic text-dim font-mono leading-relaxed">
-              "{insight}"
-            </p>
-          </div>
-        </div>
+      <div className="sfi-hero">
+        <span className="sfi-label">Shadow Friction Index</span>
+        <div className="sfi-number">{sfi_score}%</div>
+        <h2 className="gold-text" style={{ fontSize: '1.1rem', marginTop: '0', letterSpacing: '0.3em' }}>
+          {archetype}
+        </h2>
+      </div>
 
-        {/* Right Column: Next Steps */}
-        <div className="flex flex-col justify-center">
-          <h3>Твоя стратегия адаптации</h3>
-          <p className="text-dim text-sm mb-8">
-            Твой результат в секции <span className="text-white font-bold">{archetype}</span> указывает на то, что Тень забирает до 60% твоей эффективности. 
-            Это "Налог на Порядочность", который можно конвертировать в Капитал.
-          </p>
-
-          <div className="flex flex-col gap-4">
-            <a 
-              href={`https://t.me/Shadowass1st_bot?start=${uuid}`} 
-              target="_blank" 
-              className="btn-primary flex items-center justify-between group"
-            >
-              <span>Получить PDF-анализ в TG</span>
-              <Send size={18} className="transition-transform group-hover:translate-x-1" />
-            </a>
-            
-            <button 
-              className="btn-secondary flex items-center justify-between"
-              onClick={() => window.open('https://shershadowcapital.com/audit')}
-            >
-              <span>Записаться на Shadow Audit</span>
-              <ExternalLink size={16} />
-            </button>
-            
-            <button className="text-xs text-dim hover:text-white mt-4 font-mono underline" onClick={onRestart}>
-              Перезапустить систему сканирования
-            </button>
-          </div>
+      <div className="metrics-row">
+        <div className="metric-card">
+          <span className="metric-value">{scores?.vitality || 0}/10</span>
+          <span className="metric-name">Vitality</span>
         </div>
+        <div className="metric-card">
+          <span className="metric-value">{scores?.sovereign || 0}/10</span>
+          <span className="metric-name">Sovereign</span>
+        </div>
+        <div className="metric-card">
+          <span className="metric-value">{scores?.expansion || 0}/10</span>
+          <span className="metric-name">Expansion</span>
+        </div>
+        <div className="metric-card">
+          <span className="metric-value">{scores?.architect || 0}/10</span>
+          <span className="metric-name">Architect</span>
+        </div>
+      </div>
+
+      <div className="dossier-scroll-box">
+        <div style={{ whiteSpace: 'pre-line' }}>
+          {insight}
+        </div>
+      </div>
+
+      <div className="action-footer">
+        <a 
+          href={telegramDeepLink} 
+          className="btn-tg-deep"
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.52-1.4.51-.46-.01-1.35-.26-2.01-.48-.81-.27-1.45-.42-1.39-.88.03-.24.36-.48.99-.74 3.88-1.69 6.47-2.8 7.74-3.35 3.69-1.59 4.45-1.87 4.95-1.88.11 0 .35.03.51.16.13.11.17.26.19.37.02.13.02.39 0 .58z"/>
+          </svg>
+          Получить полное SFI-Досье в TG
+        </a>
+        <button className="btn-secondary" onClick={onRestart} style={{ border: 'none', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', marginTop: '1rem', color: '#94949e', fontSize: '0.8rem' }}>
+          Пройти тест заново
+        </button>
       </div>
     </motion.div>
   );
-}
+};
+
+export default ResultsDisplay;

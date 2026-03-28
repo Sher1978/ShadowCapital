@@ -1,7 +1,6 @@
-from aiogram import Router, types, F, Bot
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.markdown import hbold, hitalic
+from aiogram.utils.markdown import hbold, hitalic, hunderline
 from database.firebase_db import FirestoreDB
 from bot.keyboards.builders import get_main_keyboard
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -64,9 +63,16 @@ async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: d
 @client_router.message(CommandStart())
 @client_router.message(Command("menu"))
 @client_router.message(F.text == "🏠 В меню")
-async def command_start_handler(message: types.Message) -> None:
-    is_admin = message.from_user.id in ADMIN_IDS
+async def command_start_handler(message: types.Message, command: CommandObject = None) -> None:
+    is_admin_user = message.from_user.id in ADMIN_IDS
     
+    # Handle Deep Linking (SFI Result)
+    if command and command.args:
+        args = command.args
+        if args.startswith("W-"):
+            await handle_sfi_deep_link(message, args)
+            return
+
     user = await FirestoreDB.get_user(message.from_user.id)
     
     if not user:
@@ -74,8 +80,8 @@ async def command_start_handler(message: types.Message) -> None:
             "tg_id": message.from_user.id,
             "username": message.from_user.username,
             "full_name": message.from_user.full_name,
-            "role": "admin" if is_admin else "client",
-            "status": "active" if is_admin else "new",
+            "role": "admin" if is_admin_user else "client",
+            "status": "active" if is_admin_user else "new",
             "sfi_index": 0.5,
             "red_flags_count": 0
         }
@@ -83,13 +89,49 @@ async def command_start_handler(message: types.Message) -> None:
         user = user_data
         user['id'] = doc_id
         
-    is_active = (user.get('status') == "active") or is_admin
+    is_active = (user.get('status') == "active") or is_admin_user
     
     await message.answer(
         f"Привет, {hbold(message.from_user.full_name)}! Бот Shadow Guardian на связи.\n"
         f"Если ты участник Shadow Sprint, я буду сопровождать тебя ближайшие 30 дней.",
-        reply_markup=get_main_keyboard(is_admin, is_active=is_active)
+        reply_markup=get_main_keyboard(is_admin_user, is_active=is_active)
     )
+
+async def handle_sfi_deep_link(message: types.Message, uuid: str):
+    """Handles logic when user comes from SFI Web Test."""
+    lead = await FirestoreDB.get_sfi_lead(uuid)
+    if not lead:
+        await message.answer("❌ Код доступа недействителен или срок его действия истек.")
+        return
+
+    sfi = lead.get('sfi_score', 0)
+    archetype = lead.get('archetype', 'Unknown')
+    insight = lead.get('insight', 'No analysis available.')
+    
+    welcome_text = (
+        f"🗝 {hbold('ДОСТУП ОТКРЫТ: ВАШ SFI ДОСЬЕ')}\n\n"
+        f"Я получил результаты твоего сканирования из системы SFI Web.\n\n"
+        f"📊 {hbold('SFI Index:')} {sfi}%\n"
+        f"👑 {hbold('Архетип саботажа:')} {archetype}\n\n"
+        f"📝 {hbold('ПОЛНАЯ ДИАГНОСТИКА:')}\n"
+        f"{insight}\n\n"
+        f"Твой результат передан Игорю. Это первый шаг к конвертации Теневого Капитала в реальный результат. "
+        "Ожидай сообщения, мы уже анализируем твою стратегию."
+    )
+    
+    await message.answer(welcome_text)
+    
+    # Notify admin that user linked their result
+    bot = message.bot
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(
+                admin_id,
+                f"👤 {hbold(message.from_user.full_name)} (@{message.from_user.username}) "
+                f"привязал свой SFI результат {hbold(uuid)}!\n\n"
+                f"Оценка: {sfi}%"
+            )
+        except: pass
 
 @client_router.message(F.text.contains("Активировать Спринт"))
 async def activate_request_handler(message: types.Message):
