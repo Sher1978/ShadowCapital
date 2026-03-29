@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, ChevronLeft, ShieldCheck, Activity, TrendingUp, Layout } from 'lucide-react';
+import { Activity, ShieldCheck, TrendingUp, Layout as LayoutIcon, ChevronLeft } from 'lucide-react';
 
 const QUESTIONS = [
   // ZONE C: VITALITY (Fuel)
@@ -25,10 +25,10 @@ const QUESTIONS = [
 ];
 
 const ZONES = {
-  'C': { label: 'Vitality', icon: Activity, color: '#ff4b2b' },
-  'B': { label: 'Sovereign', icon: ShieldCheck, color: '#bb86fc' },
-  'A': { label: 'Expansion', icon: TrendingUp, color: '#03dac6' },
-  'D': { label: 'Architect', icon: Layout, color: '#d4af37' }
+  'C': { label: 'Vitality Sector', icon: Activity },
+  'B': { label: 'Sovereign Sector', icon: ShieldCheck },
+  'A': { label: 'Expansion Sector', icon: TrendingUp },
+  'D': { label: 'Architect Sector', icon: LayoutIcon }
 };
 
 export default function SFIQuiz({ onComplete }) {
@@ -38,14 +38,14 @@ export default function SFIQuiz({ onComplete }) {
   const [isIntro, setIsIntro] = useState(true);
 
   const currentQuestion = QUESTIONS[step];
-  const progress = ((step + 1) / QUESTIONS.length) * 100;
+  const progress = ((step) / QUESTIONS.length) * 100;
 
   const handleAnswer = (value) => {
     const newAnswers = { ...answers, [currentQuestion.id]: value };
     setAnswers(newAnswers);
     
     if (step < QUESTIONS.length - 1) {
-      setStep(step + 1);
+      setTimeout(() => setStep(step + 1), 200);
     } else {
       onComplete(userData, newAnswers);
     }
@@ -54,36 +54,44 @@ export default function SFIQuiz({ onComplete }) {
   if (isIntro) {
     return (
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-card"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="ios-card"
       >
-        <div className="gold-text mb-2">Shadow Scan v2.0</div>
-        <h1>Начни дешифровку своей системы</h1>
-        <p className="text-dim mb-8">
-          Этот тест оцифрует твой «Налог на Трение» — скрытую цену, которую ты платишь за внутренний саботаж.
-        </p>
+        <div className="sector-header">
+          <span className="sector-tag">Classification: SFI Diagnostic</span>
+          <h1 style={{ marginBottom: '0.5rem', fontSize: '2.4rem' }}>SHADOW SCAN <span className="gold-text" style={{ fontSize: '1rem', verticalAlign: 'middle' }}>v2.6</span></h1>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Оцифруй свою систему и выяви скрытый «Налог на Трение».</p>
+        </div>
         
-        <input 
-          className="input-field" 
-          placeholder="Твое Имя" 
-          value={userData.name}
-          onChange={(e) => setUserData({ ...userData, name: e.target.value })}
-        />
-        <input 
-          className="input-field" 
-          placeholder="Telegram или Email" 
-          value={userData.contact}
-          onChange={(e) => setUserData({ ...userData, contact: e.target.value })}
-        />
-        
-        <button 
-          className="btn-primary w-full"
-          disabled={!userData.name || !userData.contact}
-          onClick={() => setIsIntro(false)}
-        >
-          Запустить сканирование
-        </button>
+        <div style={{ marginTop: '2.5rem' }}>
+          <div className="ios-input-group">
+            <label className="ios-label">Имя Оператора</label>
+            <input 
+              className="ios-input" 
+              placeholder="e.g. Александр" 
+              value={userData.name}
+              onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+            />
+          </div>
+          <div className="ios-input-group" style={{ marginBottom: '3rem' }}>
+            <label className="ios-label">Telegram или Email</label>
+            <input 
+              className="ios-input" 
+              placeholder="@username" 
+              value={userData.contact}
+              onChange={(e) => setUserData({ ...userData, contact: e.target.value })}
+            />
+          </div>
+          
+          <button 
+            className={`ios-btn-gold ${(!userData.name || !userData.contact) ? 'opacity-50 pointer-events-none' : ''}`}
+            onClick={() => setIsIntro(false)}
+          >
+            Запустить сканирование
+            <Activity size={18} />
+          </button>
+        </div>
       </motion.div>
     );
   }
@@ -91,65 +99,60 @@ export default function SFIQuiz({ onComplete }) {
   const ZoneIcon = ZONES[currentQuestion.zone].icon;
 
   return (
-    <div className="glass-card">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-2">
-          <ZoneIcon size={18} color={ZONES[currentQuestion.zone].color} />
-          <span className="gold-text">{ZONES[currentQuestion.zone].label} Sector</span>
-        </div>
-        <div className="text-xs font-mono opacity-50">{step + 1} / {QUESTIONS.length}</div>
+    <motion.div 
+      key={step}
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      className="ios-card"
+    >
+      <div className="sector-header">
+        <span className="sector-tag">
+          <ZoneIcon size={12} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+          {ZONES[currentQuestion.zone].label}
+        </span>
+        <h2 className="question-text">{currentQuestion.text}</h2>
       </div>
 
-      <div className="w-full bg-metal h-1 mb-10 overflow-hidden rounded-full">
+      <div className="answer-grid-premium">
+        {[...Array(11)].map((_, i) => (
+          <div
+            key={i}
+            className={`answer-pill ${answers[currentQuestion.id] === i ? 'active' : ''}`}
+            onClick={() => handleAnswer(i)}
+          >
+            {i}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid-labels">
+        <span>{currentQuestion.min}</span>
+        <span>{currentQuestion.max}</span>
+      </div>
+
+      <div className="progress-container">
         <motion.div 
-          className="bg-gold h-full"
+          className="progress-bar-fill"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
         />
       </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={step}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-        >
-          <h2 className="mb-12 min-h-[4rem]">{currentQuestion.text}</h2>
-          
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-between text-xs font-mono text-dim mb-2">
-              <span>{currentQuestion.min}</span>
-              <span>{currentQuestion.max}</span>
-            </div>
-            
-            <div className="grid grid-cols-11 gap-1">
-              {[...Array(11)].map((_, i) => (
-                <button
-                  key={i}
-                  className={`h-12 border border-metal rounded transition-all active:scale-95 flex items-center justify-center font-bold text-xs
-                    ${answers[currentQuestion.id] === i 
-                      ? 'bg-gold border-gold text-black shadow-[0_0_15px_rgba(212,175,55,0.4)]' 
-                      : 'hover:bg-white/5 text-dim'}`}
-                  onClick={() => handleAnswer(i)}
-                >
-                  {i}
-                </button>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
-
-      <div className="mt-12 flex justify-between">
+      <div className="flex justify-between items-center mt-8">
         <button 
-          className="btn-secondary flex items-center gap-2"
+          className="btn-secondary"
+          style={{ padding: '0.6rem 1rem', fontSize: '0.7rem', opacity: step === 0 ? 0 : 1 }}
           disabled={step === 0}
           onClick={() => setStep(step - 1)}
         >
-          <ChevronLeft size={16} /> Назад
+          <ChevronLeft size={14} style={{ marginRight: '4px' }} /> Назад
         </button>
+        
+        <div className="gold-text" style={{ fontSize: '0.7rem' }}>
+          {step + 1} / {QUESTIONS.length}
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

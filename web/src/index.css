@@ -37,6 +37,12 @@ body {
   background: radial-gradient(circle at center, #1a1a20 0%, #0a0a0b 100%);
 }
 
+@media (max-width: 640px) {
+  .app-container {
+    padding: 1rem;
+  }
+}
+
 .blueprint-bg {
   position: fixed;
   top: 0;
@@ -324,3 +330,205 @@ h1, h2, h3 {
   width: 24px;
   height: 24px;
 }
+
+/* --- iOS 26 Premium Quiz Extensions --- */
+
+.ios-card {
+  background: rgba(15, 15, 18, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  padding: 3.5rem 2.5rem;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+  z-index: 10;
+}
+
+@media (max-width: 640px) {
+  .ios-card {
+    padding: 2.5rem 1.5rem;
+    border-radius: 24px;
+    width: 92%;
+  }
+}
+
+.ios-input-group {
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.ios-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--accent-gold);
+  letter-spacing: 0.15em;
+  margin-bottom: 0.75rem;
+  opacity: 0.7;
+}
+
+.ios-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 1.1rem 1.25rem;
+  color: #fff;
+  font-family: var(--font-main);
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.ios-input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
+}
+
+.ios-btn-gold {
+  background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+  color: #000;
+  border: none;
+  padding: 1.2rem 2.5rem;
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  width: 100%;
+  box-shadow: 0 10px 20px rgba(184, 134, 11, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.ios-btn-gold:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 15px 30px rgba(212, 175, 55, 0.4);
+  filter: brightness(1.1);
+}
+
+.ios-btn-gold:active {
+  transform: scale(0.98);
+}
+
+/* Premium Answer Grid */
+.answer-grid-premium {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2.5rem -1.25rem;
+  padding: 0;
+  width: calc(100% + 2.5rem);
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .answer-grid-premium {
+    gap: 2px;
+    margin: 2rem -1.25rem;
+    width: calc(100% + 2.5rem);
+  }
+}
+
+.answer-pill {
+  flex: 1;
+  aspect-ratio: 1/1;
+  max-width: 50px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(5px);
+}
+
+.answer-pill:hover {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: var(--accent-gold);
+  color: #fff;
+  transform: translateY(-4px);
+}
+
+.answer-pill.active {
+  background: var(--accent-gold);
+  color: #000;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 20px var(--accent-gold-glow);
+  transform: scale(1.1);
+}
+
+.grid-labels {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0 4px;
+  margin-top: -1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* Premium Sector Header */
+.sector-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.sector-tag {
+  display: inline-block;
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  color: var(--accent-gold);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.question-text {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #fff;
+  margin-bottom: 1rem;
+}
+
+/* Progress System */
+.progress-container {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+  margin-top: 3rem;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-gold), #fff);
+  box-shadow: 0 0 10px var(--accent-gold-glow);
+  transition: width 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
