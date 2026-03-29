@@ -223,6 +223,7 @@ def send_sfi_email(to_email, name, sfi_score, archetype, diagnostic_text):
     }
 
     # Format the HTML content
+    diagnostic_html = diagnostic_text.replace('\n', '<br>')
     html_content = f"""
     <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; background-color: #0f172a; color: #f8fafc; border-radius: 12px; border: 1px solid #1e293b;">
         <h1 style="color: #38bdf8; text-align: center;">🗝 Shadow SFI: Ваш Досье</h1>
@@ -236,7 +237,7 @@ def send_sfi_email(to_email, name, sfi_score, archetype, diagnostic_text):
 
         <h3 style="color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 5px;">🧬 ПОЛНАЯ ДИАГНОСТИКА:</h3>
         <div style="white-space: pre-wrap; line-height: 1.6; color: #cbd5e1;">
-            {diagnostic_text.replace('\n', '<br>')}
+            {diagnostic_html}
         </div>
 
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #334155; text-align: center; color: #94a3b8; font-size: 0.9em;">
