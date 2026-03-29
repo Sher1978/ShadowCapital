@@ -70,6 +70,9 @@ export default function SFIQuiz({ onComplete }) {
             <input 
               className="ios-input" 
               placeholder="e.g. Александр" 
+              style={{ 
+                border: !userData.name ? '1px solid rgba(255, 59, 48, 0.4)' : '1px solid rgba(212, 175, 55, 0.2)' 
+              }}
               value={userData.name}
               onChange={(e) => setUserData({ ...userData, name: e.target.value })}
             />
@@ -79,14 +82,22 @@ export default function SFIQuiz({ onComplete }) {
             <input 
               className="ios-input" 
               placeholder="@username" 
+              style={{ 
+                border: !userData.contact ? '1px solid rgba(255, 59, 48, 0.4)' : '1px solid rgba(212, 175, 55, 0.2)' 
+              }}
               value={userData.contact}
               onChange={(e) => setUserData({ ...userData, contact: e.target.value })}
             />
           </div>
           
           <button 
-            className={`ios-btn-gold ${(!userData.name || !userData.contact) ? 'opacity-50 pointer-events-none' : ''}`}
+            className="ios-btn-gold"
+            disabled={!userData.name || !userData.contact}
             onClick={() => setIsIntro(false)}
+            style={{ 
+              opacity: (!userData.name || !userData.contact) ? 0.3 : 1,
+              cursor: (!userData.name || !userData.contact) ? 'not-allowed' : 'pointer'
+            }}
           >
             Запустить сканирование
             <Activity size={18} />

@@ -162,17 +162,27 @@ async def handle_sfi_deep_link(message: types.Message, uuid: str):
     
     await message.answer(welcome_text)
     
-    # Notify admin with full details
-    bot = message.bot
+    # Fetch user data for phone number and telegram info
+    user_db = await FirestoreDB.get_user(message.from_user.id)
+    user_phone = user_db.get('phone', 'Не указан') if user_db else 'Не указан'
+    
+    # Unified Admin Notification
     admin_notification = (
-        f"🚨 {hbold('SFI РЕЗУЛЬТАТ ПРИВЯЗАН')}\n\n"
-        f"👤 {message.from_user.full_name} (@{message.from_user.username or 'N/A'}) "
-        f"привязал свой SFI результат {hbold(uuid)}!\n\n"
+        f"🚨 {hbold('НОВОЕ ТЕСТИРОВАНИЕ')}\n\n"
+        f"👤 {hbold('Оператор:')} {message.from_user.full_name} (@{message.from_user.username or 'N/A'})\n"
+        f"🆔 {hbold('ID:')} {hcode(message.from_user.id)}\n"
+        f"🔗 {hbold('Профиль:')} tg://user?id={message.from_user.id}\n"
+        f"📱 {hbold('Телефон:')} {hcode(user_phone)}\n"
+        f"🗝 {hbold('Код теста:')} {hcode(uuid)}\n\n"
         f"📊 {hbold('Итоговый SFI Index:')} {sfi}%\n"
         f"🏆 {hbold('Ведущий Архетип:')} {archetype}\n\n"
         f"📝 {hbold('ПОЛНАЯ ДИАГНОСТИКА:')}\n\n"
         f"{full_diagnostic}"
     )
+    
+    # Inline button for quick contact
+    builder = InlineKeyboardBuilder()
+    builder.button(text="💬 Написать клиенту", url=f"tg://user?id={message.from_user.id}")
     
     for admin_id in ADMIN_IDS:
         # Avoid sending the same message twice if the user themselves is an admin
@@ -180,7 +190,11 @@ async def handle_sfi_deep_link(message: types.Message, uuid: str):
             continue
             
         try:
-            await bot.send_message(admin_id, admin_notification)
+            await bot.send_message(
+                admin_id, 
+                admin_notification, 
+                reply_markup=builder.as_markup()
+            )
         except: pass
 
 @client_router.message(F.text.contains("Активировать Спринт"))
