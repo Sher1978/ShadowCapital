@@ -10,7 +10,7 @@ import logging
 from utils.transcription import transcribe_voice
 from utils.analysis import analyze_sabotage
 from utils.alerts import send_red_alert
-from utils.gsheets_api import sync_user_to_sheets, sync_sfi_analytics, get_instruction_text
+from utils.gsheets_api import sync_user_to_sheets, sync_sfi_analytics, get_instruction_text, get_test_answers
 from utils.sfi_logic import calculate_daily_sfi, get_sfi_zone
 from config import ADMIN_IDS, MENU_KEYWORDS, is_admin
 from datetime import datetime, timezone, time
@@ -112,31 +112,75 @@ async def handle_sfi_deep_link(message: types.Message, uuid: str):
 
     sfi = lead.get('sfi_score', 0)
     archetype = lead.get('archetype', 'Unknown')
-    insight = lead.get('insight', 'No analysis available.')
+    zone_scores = lead.get('zone_scores', {}) # Map: {Vitality: 15, Sovereign: 20...}
+    
+    # Fetch dynamic summaries from GSheets
+    summaries_data = await get_test_answers()
+    
+    def get_summary(zone_name, score_30):
+        # Convert 0-30 to 0-10
+        score_10 = round(score_30 / 3.0, 1)
+        intensity = "1-5"
+        if score_10 > 8: intensity = "9-10"
+        elif score_10 > 5: intensity = "6-8"
+        
+        for row in summaries_data:
+            if row.get('Scenario') == zone_name and row.get('Range') == intensity:
+                return row.get('Summary', 'N/A'), score_10
+        return "Диагностика в этой зоне подтверждает наличие Теневого Капитала.", score_10
+
+    # Zone mapping for display
+    zones_meta = [
+        ("Sovereign", "👑 Sovereign (Власть и Границы)"),
+        ("Expansion", "📈 Expansion (Наглость и Масштаб)"),
+        ("Vitality", "🔋 Vitality (Ресурс и Энергия)"),
+        ("Architect", "👁 Architect (Интуиция и Хаос)")
+    ]
+    
+    diagnostic_blocks = []
+    for internal_name, display_name in zones_meta:
+        score_30 = zone_scores.get(internal_name, 0)
+        summary_text, s10 = get_summary(internal_name, score_30)
+        diagnostic_blocks.append(
+            f"{hbold(display_name)}: {s10}/10\n"
+            f"{hitalic(summary_text)}"
+        )
+    
+    full_diagnostic = "\n\n".join(diagnostic_blocks)
     
     welcome_text = (
         f"🗝 {hbold('ДОСТУП ОТКРЫТ: ВАШ SFI ДОСЬЕ')}\n\n"
         f"Я получил результаты твоего сканирования из системы SFI Web.\n\n"
-        f"📊 {hbold('SFI Index:')} {sfi}%\n"
-        f"👑 {hbold('Архетип саботажа:')} {archetype}\n\n"
-        f"📝 {hbold('ПОЛНАЯ ДИАГНОСТИКА:')}\n"
-        f"{insight}\n\n"
-        f"Твой результат передан Игорю. Это первый шаг к конвертации Теневого Капитала в реальный результат. "
+        f"📊 {hbold('Итоговый SFI Index:')} {sfi}%\n"
+        f"🏆 {hbold('Ведущий Архетип:')} {archetype}\n\n"
+        f"📝 {hbold('ПОЛНАЯ ДИАГНОСТИКА:')}\n\n"
+        f"{full_diagnostic}\n"
+        f"\n{hbold('Рекомендован личный аудит')}\n\n"
+        "Твои результаты получены и обрабатываются. Это первый шаг к конвертации Теневого Капитала в реальный. "
         "Ожидай сообщения, мы уже анализируем твою стратегию."
     )
     
     await message.answer(welcome_text)
     
-    # Notify admin that user linked their result
+    # Notify admin with full details
     bot = message.bot
+    admin_notification = (
+        f"🚨 {hbold('SFI РЕЗУЛЬТАТ ПРИВЯЗАН')}\n\n"
+        f"👤 {message.from_user.full_name} (@{message.from_user.username or 'N/A'}) "
+        f"привязал свой SFI результат {hbold(uuid)}!\n\n"
+        f"📊 {hbold('Итоговый SFI Index:')} {sfi}%\n"
+        f"🏆 {hbold('Ведущий Архетип:')} {archetype}\n\n"
+        f"📝 {hbold('ПОЛНАЯ ДИАГНОСТИКА:')}\n\n"
+        f"{full_diagnostic}"
+    )
+    
     for admin_id in ADMIN_IDS:
+        # Avoid sending the same message twice if the user themselves is an admin
+        if admin_id == message.from_user.id:
+            continue
+            
         try:
-            await bot.send_message(
-                admin_id,
-                f"👤 {hbold(message.from_user.full_name)} (@{message.from_user.username}) "
-                f"привязал свой SFI результат {hbold(uuid)}!\n\n"
-                f"Оценка: {sfi}%"
-            )
+            await bot.send_message(admin_id, admin_notification)
         except: pass
 
 @client_router.message(F.text.contains("Активировать Спринт"))

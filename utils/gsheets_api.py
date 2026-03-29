@@ -376,3 +376,70 @@ async def sync_sfi_analytics(user_data: dict):
             logging.error(f"Error syncing SFI analytics: {e}")
 
     await asyncio.to_thread(_sync)
+
+async def init_test_answers_sheet():
+    """
+    Initializes the 'Test_answers' sheet with the 4-zone diagnostic template.
+    """
+    def _init():
+        client = get_gsheets_client()
+        if not client: return
+        
+        try:
+            sh = client.open_by_url(SPREADSHEET_URL)
+            try:
+                worksheet = sh.worksheet("Test_answers")
+            except gspread.WorksheetNotFound:
+                worksheet = sh.add_worksheet(title="Test_answers", rows="20", cols="5")
+                worksheet.append_row(["Scenario", "Range", "Summary", "CallToAction"])
+
+            # Data template for the 4 zones
+            data = [
+                ["Sovereign", "1-5", "Низкий индекс. Вы часто уступаете под давлением. Плата — потеря контроля над своей жизнью и ресурсами.", "Рекомендован личный аудит"],
+                ["Sovereign", "6-8", "Средний индекс. Вы умеете обозначать границы, но иногда пасуете в критических ситуациях. Плата — нестабильность авторитета.", "Рекомендован личный аудит"],
+                ["Sovereign", "9-10", "Высокий индекс. Вы — хозяин положения. Однако жесткость может отталкивать союзников. Плата — риск изоляции.", "Рекомендован личный аудит"],
+                
+                ["Expansion", "1-5", "Низкий индекс. Страх проявления мешает росту. Плата — стагнация и жизнь в тени чужих успехов.", "Рекомендован личный аудит"],
+                ["Expansion", "6-8", "Средний индекс. Вы растете, но осторожно. Плата — упущенная сверхприбыль из-за лишних сомнений.", "Рекомендован личный аудит"],
+                ["Expansion", "9-10", "Высокий индекс. Агрессивный рост. Плата — высокое внутреннее напряжение и риск 'перегореть' на взлете.", "Рекомендован личный аудит"],
+                
+                ["Vitality", "1-5", "Низкий индекс. Хронический дефицит сил. Плата — выгорание и невозможность реализовать даже простые планы.", "Рекомендован личный аудит"],
+                ["Vitality", "6-8", "Средний индекс. Энергии хватает на базу, но не на прорыв. Плата — отсутствие драйва и вкуса к жизни.", "Рекомендован личный аудит"],
+                ["Vitality", "9-10", "Высокий индекс. Избыток ресурса. Плата — если не направлять энергию в дело, она превращается в тревогу.", "Рекомендован личный аудит"],
+                
+                ["Architect", "1-5", "Низкий индекс. Вы слишком полагаетесь на логику, упуская знаки. Плата — слепые пятна в стратегии.", "Рекомендован личный аудит"],
+                ["Architect", "6-8", "Средний индекс. Интуиция работает, но вы боитесь ей доверять. Плата — затянутое принятие решений.", "Рекомендован личный аудит"],
+                ["Architect", "9-10", "Высокий индекс. Визионерский подход. Плата — риск оторваться от реальности и потерять почву под ногами.", "Рекомендован личный аудит"]
+            ]
+            
+            # Clear existing data and rewrite
+            worksheet.clear()
+            worksheet.append_row(["Scenario", "Range", "Summary", "CallToAction"])
+            worksheet.append_rows(data)
+            logging.info("✅ Test_answers sheet initialized successfully.")
+            return True
+        except Exception as e:
+            logging.error(f"Error initializing Test_answers sheet: {e}")
+            return False
+
+    return await asyncio.to_thread(_init)
+
+async def get_test_answers():
+    """
+    Fetches all diagnostic summaries from the 'Test_answers' sheet.
+    Returns: List of dicts [{'scenario', 'range', 'summary', 'cta'}]
+    """
+    def _fetch():
+        client = get_gsheets_client()
+        if not client: return []
+        
+        try:
+            sh = client.open_by_url(SPREADSHEET_URL)
+            worksheet = sh.worksheet("Test_answers")
+            records = worksheet.get_all_records()
+            return records
+        except Exception as e:
+            logging.error(f"Error fetching test answers from GSheets: {e}")
+            return []
+
+    return await asyncio.to_thread(_fetch)
