@@ -19,14 +19,17 @@ async def handle_health(request):
     return web.Response(text="Bot health check passed")
 
 async def start_health_server():
-    app = web.Application()
-    app.router.add_get("/", handle_health)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    port = int(os.environ.get("PORT", "8080"))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    logger.info(f"🏥 Health server started on port {port}")
+    try:
+        app = web.Application()
+        app.router.add_get("/", handle_health)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        port = int(os.environ.get("PORT", "8080"))
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+        logger.info(f"🏥 Health server started on port {port}")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not start health server: {e}. Skipping (non-critical for local run).")
 
 async def main() -> None:
     """

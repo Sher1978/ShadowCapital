@@ -20,10 +20,15 @@ if not firebase_admin._apps:
         logging.error(f"❌ Failed to initialize Firebase Admin: {e}")
 
 # Use Synchronous Client due to local async hangs
-database_id = os.getenv("FIREBASE_DATABASE_ID", "(default)")
-db = firestore.client(database_id=database_id)
+database_id_env = os.getenv("FIREBASE_DATABASE_ID", "(default)")
+# In Google Cloud SDK, the default database is targeted by None or (default) 
+# but (default) as a string can sometimes fail depending on SDK version.
+# We'll normalize it here.
+target_db = None if database_id_env == "(default)" else database_id_env
+
+db = firestore.client(database_id=target_db)
 project_id = os.getenv("FIREBASE_PROJECT_ID", "shershadow")
-logging.info(f"🔥 Sync Firestore client created for project: {project_id}, database: {database_id}")
+logging.info(f"🔥 Sync Firestore client created for project: {project_id}, database: {database_id_env} (mapped to: {target_db})")
 
 class FirestoreDB:
     db = db  # Expose the client
