@@ -27,8 +27,11 @@ database_id_env = os.getenv("FIREBASE_DATABASE_ID", "(default)")
 target_db = None if database_id_env == "(default)" else database_id_env
 
 db = firestore.client(database_id=target_db)
+# Secondary client specifically for SFI Diagnostic results in (default) database
+db_sfi = firestore.client(database_id=None) 
 project_id = os.getenv("FIREBASE_PROJECT_ID", "shershadow")
-logging.info(f"🔥 Sync Firestore client created for project: {project_id}, database: {database_id_env} (mapped to: {target_db})")
+logging.info(f"🔥 Sync Firestore client created for project: {project_id}, database: {database_id_env}")
+logging.info(f"🔥 SFI Firestore client created for project: {project_id}, database: (default)")
 
 class FirestoreDB:
     db = db  # Expose the client
@@ -198,8 +201,9 @@ class FirestoreDB:
 
     @staticmethod
     async def get_sfi_lead(uuid: str) -> Optional[Dict[str, Any]]:
-        """Fetch a specific SFI lead result from the web diagnostic."""
-        doc = db.collection("sfi_leads").document(uuid).get()
+        """Fetch a specific SFI lead result from the web diagnostic in (default) database."""
+        # Force use of db_sfi to target (default) database where functions write leads
+        doc = db_sfi.collection("sfi_leads").document(uuid).get()
         if doc.exists:
             data = doc.to_dict()
             data['id'] = doc.id
