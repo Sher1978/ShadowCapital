@@ -20,11 +20,10 @@ if not firebase_admin._apps:
         logging.error(f"❌ Failed to initialize Firebase Admin: {e}")
 
 # Use Synchronous Client due to local async hangs
-database_id_env = os.getenv("FIREBASE_DATABASE_ID", "(default)")
-# In Google Cloud SDK, the default database is targeted by None or (default) 
-# but (default) as a string can sometimes fail depending on SDK version.
-# We'll normalize it here.
-target_db = None if database_id_env == "(default)" else database_id_env
+# HARD-FIX: To ensure Sprint data stability, we explicitly use the known Sprint database ID
+# for the main client, while using (default) only for SFI Diagnostic results.
+database_id_env = os.getenv("FIREBASE_DATABASE_ID", "test-db-123456789")
+target_db = database_id_env 
 
 db = firestore.client(database_id=target_db)
 # Secondary client specifically for SFI Diagnostic results in (default) database
