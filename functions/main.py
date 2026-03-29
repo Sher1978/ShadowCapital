@@ -24,6 +24,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1vGvlttP6SqfSdBSiD8Z4pn3iSfBSthtus5H54MDnsP8/edit?usp=sharing"
 ADMIN_IDS = [260669598, 5590852305] # Defaulting to known admins from config.py
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
 @https_fn.on_call()
 def calculate_sfi(req: https_fn.CallableRequest) -> dict:
@@ -76,6 +77,10 @@ def calculate_sfi(req: https_fn.CallableRequest) -> dict:
         
         # 5. Telegram Notification
         notify_admin(name, contact, sfi_percent, archetype, insight, lead_id)
+        
+        # 6. Email Report (if contact is an email)
+        if "@" in contact and "." in contact:
+            send_sfi_email(contact, name, sfi_percent, archetype, insight)
         
         return {
             'status': 'success',
@@ -204,3 +209,56 @@ def notify_admin(name, contact, sfi, archetype, insight, uuid):
             "reply_markup": json.dumps(keyboard)
         }
         requests.post(url, json=payload)
+
+def send_sfi_email(to_email, name, sfi_score, archetype, diagnostic_text):
+    """Sends an SFI report via Resend API."""
+    if not RESEND_API_KEY:
+        logging.warning("📩 [EMAIL] Sending skipped: RESEND_API_KEY not set.")
+        return False
+
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    # Format the HTML content
+    html_content = f"""
+    <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; background-color: #0f172a; color: #f8fafc; border-radius: 12px; border: 1px solid #1e293b;">
+        <h1 style="color: #38bdf8; text-align: center;">🗝 Shadow SFI: Ваш Досье</h1>
+        <p>Привет, {name}!</p>
+        <p>Ваш результат сканирования в системе SFI готов. Ниже представлены ключевые показатели Вашего Теневого Капитала.</p>
+        
+        <div style="background-color: #1e293b; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 1.2em;">📊 <b>Итоговый SFI Index:</b> {sfi_score}%</p>
+            <p style="margin: 0; font-size: 1.2em;">🏆 <b>Ведущий Архетип:</b> {archetype}</p>
+        </div>
+
+        <h3 style="color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 5px;">🧬 ПОЛНАЯ ДИАГНОСТИКА:</h3>
+        <div style="white-space: pre-wrap; line-height: 1.6; color: #cbd5e1;">
+            {diagnostic_text.replace('\n', '<br>')}
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #334155; text-align: center; color: #94a3b8; font-size: 0.9em;">
+            <p>Это первый шаг к конвертации Теневого Капитала в реальный результат.</p>
+            <p>Ожидайте сообщения от Игоря, мы уже анализируем Вашу стратегию.</p>
+        </div>
+    </div>
+    """
+
+    payload = {
+        "from": "Shadow Sprint <onboarding@resend.dev>",
+        "to": [to_email],
+        "subject": f"🎯 Ваш SFI Отчет: {sfi_score}% — {archetype}",
+        "html": html_content
+    }
+
+    try:
+        import requests
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        logging.info(f"✅ [EMAIL] Report sent to {to_email}")
+        return True
+    except Exception as e:
+        logging.error(f"❌ [EMAIL] Error sending to {to_email}: {e}")
+        return False
