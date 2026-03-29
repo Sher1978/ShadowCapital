@@ -102,7 +102,12 @@ async def handle_sfi_deep_link(message: types.Message, uuid: str):
     """Handles logic when user comes from SFI Web Test."""
     lead = await FirestoreDB.get_sfi_lead(uuid)
     if not lead:
-        await message.answer("❌ Код доступа недействителен или срок его действия истек.")
+        builder = InlineKeyboardBuilder()
+        builder.button(text="📝 Пройти тест", url="https://shershadow.web.app/sfitest")
+        await message.answer(
+            "❌ Код доступа недействителен или срок его действия истек.",
+            reply_markup=builder.as_markup()
+        )
         return
 
     sfi = lead.get('sfi_score', 0)
