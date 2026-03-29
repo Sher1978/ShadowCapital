@@ -1,7 +1,7 @@
 from aiogram import Router, types, F, Bot
 from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.markdown import hbold, hitalic, hunderline
+from aiogram.utils.markdown import hbold, hitalic, hunderline, hcode
 from database.firebase_db import FirestoreDB
 from bot.keyboards.builders import get_main_keyboard
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -105,7 +105,7 @@ async def handle_sfi_deep_link(message: types.Message, uuid: str):
         builder = InlineKeyboardBuilder()
         builder.button(text="📝 Пройти тест", url="https://shershadow.web.app/sfitest")
         await message.answer(
-            "❌ Код доступа недействителен или срок его действия истек.",
+            f"❌ Код доступа {hcode(uuid)} недействителен или срок его действия истек.",
             reply_markup=builder.as_markup()
         )
         return
