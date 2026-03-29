@@ -57,4 +57,4 @@ jobs:
             --timeout 300 \
             --add-volume=name=persistence-volume,type=cloud-storage,bucket=shadow-bot-persistence-shershadow \
             --add-volume-mount=volume=persistence-volume,mount-path=/app/data \
-            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},REDIS_URL=${{ secrets.REDIS_URL }},FIREBASE_DATABASE_ID=test-db-123456789,FIREBASE_PROJECT_ID=shershadow,GOOGLE_CREDENTIALS=${{ env.GS_CREDS_B64 }}"
+            --set-env-vars "BOT_TOKEN=${{ secrets.BOT_TOKEN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},RESEND_API_KEY=${{ secrets.RESEND_API_KEY }},ADMIN_IDS=${{ secrets.ADMIN_IDS }},REDIS_URL=${{ secrets.REDIS_URL }},FIREBASE_DATABASE_ID=test-db-123456789,FIREBASE_PROJECT_ID=shershadow,GOOGLE_CREDENTIALS=${{ env.GS_CREDS_B64 }}"
