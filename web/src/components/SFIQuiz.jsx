@@ -93,7 +93,11 @@ export default function SFIQuiz({ onComplete }) {
           <button 
             className="ios-btn-gold"
             disabled={!userData.name || !userData.contact}
-            onClick={() => setIsIntro(false)}
+            onClick={() => {
+              if (userData.name && userData.contact) {
+                setIsIntro(false);
+              }
+            }}
             style={{ 
               opacity: (!userData.name || !userData.contact) ? 0.3 : 1,
               cursor: (!userData.name || !userData.contact) ? 'not-allowed' : 'pointer'
