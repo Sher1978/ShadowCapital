@@ -76,8 +76,8 @@ async def main() -> None:
         # Register Middlewares & Routers
         dp.message.outer_middleware(FsmResetMiddleware())
         dp.include_router(settings_router)
-        dp.include_router(client_router)
         dp.include_router(admin_router)
+        dp.include_router(client_router)
 
         # 3. APScheduler
         scheduler = setup_scheduler(bot)

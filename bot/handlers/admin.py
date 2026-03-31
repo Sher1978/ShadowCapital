@@ -247,6 +247,8 @@ async def show_pending_page(message: types.Message, page: int = 0):
     for doc in docs:
         d = doc.to_dict()
         d['id'] = doc.id
+        if d.get('tg_id') in ADMIN_IDS:
+            continue
         users.append(d)
     logger.info(f"🔍 [QUERY] Found {len(users)} pending users.")
         
@@ -316,6 +318,8 @@ async def show_active_page(message: types.Message, page: int = 0):
     for doc in docs:
         d = doc.to_dict()
         d['id'] = doc.id
+        if d.get('tg_id') in ADMIN_IDS:
+            continue
         users.append(d)
         
     if not users and page == 0:
@@ -368,7 +372,11 @@ async def admin_analytics_handler(message: types.Message, state: FSMContext):
     
     # Simple average calculation (async)
     active_docs = FirestoreDB.db.collection("users").where("status", "==", "active").stream()
-    sfi_values = [doc.to_dict().get('sfi_index', 1.0) for doc in active_docs]
+    sfi_values = [
+        doc.to_dict().get('sfi_index', 1.0) 
+        for doc in active_docs 
+        if doc.to_dict().get('tg_id') not in ADMIN_IDS
+    ]
     avg_sfi = sum(sfi_values) / len(sfi_values) if sfi_values else 1.0
     
     text = (

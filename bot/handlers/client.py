@@ -1,5 +1,5 @@
 from aiogram import Router, types, F, Bot
-from aiogram.filters import CommandStart, Command, CommandObject
+from aiogram.filters import CommandStart, Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hbold, hitalic, hunderline, hcode
 from database.firebase_db import FirestoreDB
@@ -480,7 +480,7 @@ async def re_submit_log_callback(callback: types.CallbackQuery):
     await trigger_shadow_log_prompt(callback.message)
     await callback.answer()
 
-@client_router.message(F.voice | F.audio | (F.text & ~F.text.in_(MENU_KEYWORDS)))
+@client_router.message(StateFilter(None), F.voice | F.audio | (F.text & ~F.text.in_(MENU_KEYWORDS)))
 async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     user = await FirestoreDB.get_user(message.from_user.id)
     

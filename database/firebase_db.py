@@ -4,6 +4,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+from config import ADMIN_IDS
 
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
@@ -141,6 +142,8 @@ class FirestoreDB:
         for doc in docs:
             d = doc.to_dict()
             d['id'] = doc.id
+            if d.get('tg_id') in ADMIN_IDS:
+                continue
             users.append(d)
         return users
 
