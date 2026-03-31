@@ -92,11 +92,16 @@ async def sync_user_to_sheets(user_data: dict):
             
             sfi = user_data.get('sfi_index', 1.0)
             flags = user_data.get('red_flags', 0)
-            friction = "🟢 GREEN"
-            if sfi > 0.7 or flags >= 3:
+            status = user_data.get('status', 'active')
+            
+            if status == "archived":
+                friction = "📁 ARCHIVED"
+            elif sfi > 0.7 or flags >= 3:
                 friction = "🔴 RED"
             elif sfi > 0.4 or flags >= 2:
                 friction = "🟡 YELLOW"
+            else:
+                friction = "🟢 GREEN"
 
             cell = worksheet.find(str(user_data['user_id']))
             row_data = [

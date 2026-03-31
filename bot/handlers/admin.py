@@ -292,20 +292,18 @@ async def process_pending_pagination(callback: types.CallbackQuery):
     await show_pending_page(callback, page)
     await callback.answer()
 
-@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты"), F.from_user.id.func(is_admin), StateFilter("*"))
-async def active_sprints_handler(message: types.Message, state: FSMContext):
+@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты") | (F.text == "📁 Архив"), F.from_user.id.func(is_admin), StateFilter("*"))
+async def admin_clients_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f" Handling 'Clients' list for {user_id}")
+    logger.info(f"🔍 [ADMIN] Clients/Archive handler triggered by {user_id}")
     
-    logger.info(f"🔍 [ADMIN] 'Active Sprints' handler triggered by {user_id}")
-        
-    # Extra safety: Clear state if it wasn't cleared by middleware
-    cur_state = await state.get_state()
-    if cur_state:
-        logger.info(f"🔄 FSM State cleared for Admin menu (User: {user_id})")
-        await state.clear()
-        
-    await show_active_page(message)
+    # Safety clear
+    await state.clear()
+    
+    if message.text == "📁 Архив":
+        await show_archived_page(message)
+    else:
+        await show_active_page(message)
 
 async def show_active_page(message: types.Message, page: int = 0):
     limit = 10
@@ -354,6 +352,45 @@ async def show_active_page(message: types.Message, page: int = 0):
     else:
         await message.answer(text, reply_markup=builder.as_markup())
 
+async def show_archived_page(message: types.Message, page: int = 0):
+    limit = 10
+    offset = page * limit
+    
+    # Using the new method from firebase_db.py
+    users = await FirestoreDB.get_archived_users(limit=limit, offset=offset)
+        
+    if not users and page == 0:
+        msg_text = "Архив пуст."
+        if isinstance(message, types.CallbackQuery):
+            await message.message.edit_text(msg_text)
+        else:
+            await message.answer(msg_text)
+        return
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    
+    for u in users:
+        name = u.get('full_name') or f"ID: {u.get('tg_id')}"
+        builder.button(text=f"📁 {name}", callback_data=f"view_archived_{u.get('tg_id')}")
+        
+    builder.adjust(1)
+    
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"archived_page_{page-1}"))
+    if len(users) == limit:
+        nav_buttons.append(types.InlineKeyboardButton(text="Вперед ➡️", callback_data=f"archived_page_{page+1}"))
+    
+    if nav_buttons:
+        builder.row(*nav_buttons)
+            
+    text = f"📁 {hbold('Архив учеников')} (Стр. {page + 1}):"
+    if isinstance(message, types.CallbackQuery):
+        await message.message.edit_text(text, reply_markup=builder.as_markup())
+    else:
+        await message.answer(text, reply_markup=builder.as_markup())
+
 @admin_router.message(F.text.contains("Аналитика"), F.from_user.id.func(is_admin), StateFilter("*"))
 async def admin_analytics_handler(message: types.Message, state: FSMContext):
     logger.info(f" [ADMIN] 'Analytics' handler triggered by {message.from_user.id}")
@@ -393,6 +430,100 @@ async def admin_analytics_handler(message: types.Message, state: FSMContext):
 async def process_active_pagination(callback: types.CallbackQuery):
     page = int(callback.data.split("_")[-1])
     await show_active_page(callback, page)
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("archived_page_"))
+async def process_archived_pagination(callback: types.CallbackQuery):
+    page = int(callback.data.split("_")[-1])
+    await show_archived_page(callback, page)
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("view_archived_"))
+async def view_archived_stats_handler(callback: types.CallbackQuery):
+    tg_id = int(callback.data.split("_")[-1])
+    user = await FirestoreDB.get_user(tg_id)
+    
+    if not user:
+        await callback.answer("Пользователь не найден.")
+        return
+        
+    sprint_day = 0
+    if user.get('sprint_start_date'):
+        td = datetime.now(timezone.utc) - user.get('sprint_start_date')
+        sprint_day = td.days + 1
+        
+    sfi = user.get('sfi_index', 1.0)
+    flags = user.get('sabotage_flags', 0)
+    friction = "🔴 Критическая" if sfi < 0.2 else "🟡 Повышенная" if sfi < 0.5 else "🟢 Нормальная"
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔄 Восстановить", callback_data=f"restore_client_{tg_id}")
+    builder.button(text="📜 Логи", callback_data=f"view_logs_{tg_id}")
+    builder.button(text="💀 Удалить навсегда", callback_data=f"confirm_delete_{tg_id}")
+    builder.button(text="⬅️ Назад в архив", callback_data="archived_page_0")
+    builder.adjust(2, 2)
+    
+    text = (
+        f"📂 {hbold('Архивный профиль:')}\n\n"
+        f"👤 Имя: {user.get('full_name')}\n"
+        f"📅 День Спринта (на момент архивации): {sprint_day}/30\n"
+        f"🎯 Качество (L1): {user.get('target_quality_l1')}\n\n"
+        f"📈 Shadow Friction Index (SFI): {round(sfi, 2)}\n"
+        f"🚩 Флаги саботажа: {flags}\n"
+        f"🌡 Уровень трения: {friction}\n\n"
+        f"💡 {hbold('Последний инсайт:')}\n"
+        f"{user.get('last_insight') or 'Данных нет.'}"
+    )
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("confirm_archive_"))
+async def confirm_archive_client_handler(callback: types.CallbackQuery):
+    tg_id = int(callback.data.split("_")[-1])
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📁 Перенести в архив", callback_data=f"execute_archive_{tg_id}")
+    builder.button(text="⬅️ Отмена", callback_data=f"view_stats_{tg_id}")
+    builder.adjust(1)
+    
+    text = (
+        f"📂 {hbold('Архивация клиента')}\n\n"
+        f"Вы подтверждаете перенос клиента {tg_id} в архив?\n"
+        f"Ученик больше не будет получать уведомлений, но вся история сохранится."
+    )
+    await callback.message.edit_text(text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("execute_archive_"))
+async def execute_archive_handler(callback: types.CallbackQuery, bot: Bot):
+    tg_id = int(callback.data.split("_")[-1])
+    
+    # Update status in DB
+    await FirestoreDB.update_user(tg_id, {"status": "archived"})
+    
+    # Sync to Sheets with archived status
+    user = await FirestoreDB.get_user(tg_id)
+    if user:
+        await sync_user_to_sheets(user)
+    
+    await callback.message.edit_text(f"✅ Клиент {tg_id} успешно перенесен в архив.")
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("restore_client_"))
+async def restore_client_handler(callback: types.CallbackQuery, bot: Bot):
+    tg_id = int(callback.data.split("_")[-1])
+    
+    # Update status back to active
+    await FirestoreDB.update_user(tg_id, {"status": "active"})
+    
+    # Sync to Sheets
+    user = await FirestoreDB.get_user(tg_id)
+    if user:
+        await sync_user_to_sheets(user)
+        
+    await callback.message.edit_text(f"✅ Клиент {tg_id} восстановлен и возвращен в общий список.")
     await callback.answer()
 
 @admin_router.callback_query(F.data.startswith("view_stats_"))
@@ -441,7 +572,7 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
     builder.button(text="☀️ Утренний Импульс", callback_data=f"test_morning_{tg_id}")
     builder.button(text="🌙 Вечерний Отчет", callback_data=f"test_evening_{tg_id}")
     builder.button(text="⚙️ Редактировать профиль", callback_data=f"edit_profile_{tg_id}")
-    builder.button(text="🗑 Удалить клиента", callback_data=f"confirm_delete_{tg_id}")
+    builder.button(text="📁 В архив", callback_data=f"confirm_archive_{tg_id}")
     builder.button(text="⬅️ К списку", callback_data="active_page_0")
     builder.adjust(1, 1, 2, 1, 1, 1)
     
@@ -1059,18 +1190,18 @@ async def confirm_delete_client_handler(callback: types.CallbackQuery):
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔥 Да, УДАЛИТЬ ВСЁ", callback_data=f"execute_delete_{tg_id}")
-    builder.button(text="⬅️ Отмена", callback_data=f"view_stats_{tg_id}")
+    builder.button(text="💀 Да, УДАЛИТЬ НАВСЕГДА", callback_data=f"execute_delete_{tg_id}")
+    builder.button(text="⬅️ Отмена", callback_data=f"view_archived_{tg_id}")
     builder.adjust(1)
     
     text = (
-        f"⚠️ {hbold('ВНИМАНИЕ! РАДИКАЛЬНОЕ ДЕЙСТВИЕ')}\n\n"
-        f"Ты собираешься полностью удалить клиента {tg_id} из системы.\n"
+        f"⚠️ {hbold('ОКОНЧАТЕЛЬНОЕ УДАЛЕНИЕ')}\n\n"
+        f"Вы собираетесь ПОЛНОСТЬЮ стереть данные клиента {tg_id} из системы.\n"
         f"Будут удалены:\n"
-        f"• Профиль в Firestore\n"
-        f"• ВСЕ Shadow Logs (история отчетов)\n"
-        f"• Запись в Google Таблице\n\n"
-        f"Это действие необратимо. Подтверждаешь?"
+        f"• Профиль в базе данных\n"
+        f"• Вся история отчетов и логов\n"
+        f"• Запись в аналитической таблице\n\n"
+        f"Это действие НЕОБРАТИМО. Подтверждаете?"
     )
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
     await callback.answer()
@@ -1079,15 +1210,11 @@ async def confirm_delete_client_handler(callback: types.CallbackQuery):
 async def execute_delete_client_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
     
-    # 1. Clean Google Sheets
     from utils.gsheets_api import delete_user_from_sheets
     await delete_user_from_sheets(tg_id)
-    
-    # 2. Clean Firestore (User + Logs)
     await FirestoreDB.delete_user_and_data(tg_id)
     
-    # 3. Notify Admin
-    await callback.message.edit_text(f"✅ Клиент {tg_id} и вся его история успешно стерты из системы.")
+    await callback.message.edit_text(f"💀 Клиент {tg_id} и все его данные окончательно удалены из системы.")
     await callback.answer()
     
     # 4. Optional: Notify client? (Only if bot is not blocked)

@@ -18,6 +18,8 @@ class AdminStates(StatesGroup):
     waiting_for_edit_day = State()
     waiting_for_edit_day_confirm = State()
     waiting_for_admin_custom_report = State()
+    waiting_for_archive_confirm = State()
+    waiting_for_permanent_delete_confirm = State()
 
 class ClientStates(StatesGroup):
     waiting_for_log = State()

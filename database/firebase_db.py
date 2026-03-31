@@ -148,6 +148,18 @@ class FirestoreDB:
         return users
 
     @staticmethod
+    async def get_archived_users() -> List[Dict[str, Any]]:
+        """Get all archived users (Sync wrapper)."""
+        query = db.collection("users").where("status", "==", "archived")
+        docs = query.stream()
+        users = []
+        for doc in docs:
+            d = doc.to_dict()
+            d['id'] = doc.id
+            users.append(d)
+        return users
+
+    @staticmethod
     async def save_tasks_matrix(tasks_list: List[Dict[str, Any]]):
         """Overwrite the tasks_matrix collection with fresh data."""
         batch = db.batch()
@@ -211,3 +223,19 @@ class FirestoreDB:
             data['id'] = doc.id
             return data
         return None
+
+    @staticmethod
+    async def delete_user_and_data(tg_id: int):
+        """Delete user and all their sub-collections (Sync wrapper)."""
+        query = db.collection("users").where("tg_id", "==", tg_id).limit(1)
+        docs = list(query.stream())
+        if docs:
+            user_doc = docs[0]
+            # Delete logs sub-collection (up to 500 logs)
+            logs = user_doc.reference.collection("logs").limit(500).stream()
+            batch = db.batch()
+            for log in logs:
+                batch.delete(log.reference)
+            batch.delete(user_doc.reference)
+            batch.commit()
+            logging.info(f"🔥 Deleted user {tg_id} and their logs from Firestore.")
