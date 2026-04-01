@@ -500,30 +500,38 @@ async def confirm_archive_client_handler(callback: types.CallbackQuery):
 async def execute_archive_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
     
-    # Update status in DB
-    await FirestoreDB.update_user(tg_id, {"status": "archived"})
+    # Fetch user doc first to get document ID
+    user = await FirestoreDB.get_user(tg_id)
+    if not user:
+        await callback.answer("❌ Клиент не найден.", show_alert=True)
+        return
+        
+    # Update status in DB using doc_id
+    await FirestoreDB.update_user(user['id'], {"status": "archived"})
     
     # Sync to Sheets with archived status
-    user = await FirestoreDB.get_user(tg_id)
-    if user:
-        await sync_user_to_sheets(user)
+    await sync_user_to_sheets(user)
     
-    await callback.message.edit_text(f"✅ Клиент {tg_id} успешно перенесен в архив.")
+    await callback.message.edit_text(f"✅ Клиент {user.get('full_name')} успешно перенесен в архив.")
     await callback.answer()
 
 @admin_router.callback_query(F.data.startswith("restore_client_"))
 async def restore_client_handler(callback: types.CallbackQuery, bot: Bot):
     tg_id = int(callback.data.split("_")[-1])
     
+    # Fetch user doc first
+    user = await FirestoreDB.get_user(tg_id)
+    if not user:
+        await callback.answer("❌ Клиент не найден.", show_alert=True)
+        return
+        
     # Update status back to active
-    await FirestoreDB.update_user(tg_id, {"status": "active"})
+    await FirestoreDB.update_user(user['id'], {"status": "active"})
     
     # Sync to Sheets
-    user = await FirestoreDB.get_user(tg_id)
-    if user:
-        await sync_user_to_sheets(user)
+    await sync_user_to_sheets(user)
         
-    await callback.message.edit_text(f"✅ Клиент {tg_id} восстановлен и возвращен в общий список.")
+    await callback.message.edit_text(f"✅ Клиент {user.get('full_name')} восстановлен и возвращен в общий список.")
     await callback.answer()
 
 @admin_router.callback_query(F.data.startswith("view_stats_"))
