@@ -79,12 +79,21 @@ async def main() -> None:
         dp.include_router(admin_router)
         dp.include_router(client_router)
 
-        # 3. APScheduler
+        # 3. Bot Commands setup
+        from aiogram.types import BotCommand, BotCommandScopeDefault
+        commands = [
+            BotCommand(command="start", description="Запустить/Перезапустить бота"),
+            BotCommand(command="menu", description="Главное меню"),
+            BotCommand(command="help", description="Инструкция по работе")
+        ]
+        await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+
+        # 4. APScheduler
         scheduler = setup_scheduler(bot)
         scheduler.start()
         await reload_admin_jobs(bot)
 
-        # 4. Start Polling
+        # 5. Start Polling
         logger.info("🚀 Bot starting (Polling mode)...")
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)

@@ -338,6 +338,7 @@ async def morning_already_confirmed_handler(callback: types.CallbackQuery):
         except Exception as e:
             logging.error(f"Failed to notify admin {admin_id} about task acceptance: {e}")
 
+@client_router.message(Command("help"))
 @client_router.message(F.text == "📖 Инструкция")
 async def instruction_handler(message: types.Message) -> None:
     from utils.gsheets_api import get_instruction_text
