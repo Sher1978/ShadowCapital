@@ -160,8 +160,11 @@ async def handle_sfi_deep_link(message: types.Message, uuid: str):
         "Ожидай сообщения, мы уже анализируем твою стратегию."
     )
     
-    await message.answer(welcome_text)
-    
+    await message.answer(
+        welcome_text,
+        reply_markup=get_main_keyboard(is_admin=message.from_user.id in ADMIN_IDS, is_active=True)
+    )
+
     # Fetch user data for phone number and telegram info
     user_db = await FirestoreDB.get_user(message.from_user.id)
     user_phone = user_db.get('phone', 'Не указан') if user_db else 'Не указан'
@@ -405,9 +408,10 @@ async def curator_question_handler(message: types.Message, bot: Bot):
     )
         
     await message.answer(
-        "❓ Твой вопрос отправлен куратору. \n\n"
-        "Мы свяжемся с тобой в ближайшее время. "
-        "Пока можешь сформулировать вопрос подробнее или просто подождать ответа."
+        f"🎯 {hbold('Твой SFI Index: ')}{round(sfi_index, 2)}\n\n"
+        f"Твой результат зафиксирован. Мы уже готовим для тебя индивидуальную программу обучения. "
+        f"Нажми кнопку ниже, чтобы подать заявку на участие в Спринте!",
+        reply_markup=get_main_keyboard()
     )
 
 
@@ -689,7 +693,13 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
     # Clear level after report
     await FirestoreDB.update_user(user['id'], {"current_day_level": 2})
     
-    await message.answer(f"{insight_msg}\n\nПожалуйста, дождись комментария Администратора.")
+    # Final confirmation with keyboard
+    success_text = (
+        f"✨ {hbold('Теневой отчет принят!')}\n\n"
+        f"{insight_msg}\n\n"
+        f"📅 Твой прогресс зафиксирован. Отдыхай и дождись комментария Куратора. До завтра! 🌙"
+    )
+    await message.answer(success_text, reply_markup=get_main_keyboard())
 
 @client_router.callback_query(F.data.startswith("task_level:"))
 async def task_level_selection_handler(callback: types.CallbackQuery, bot: Bot):

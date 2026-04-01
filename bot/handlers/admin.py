@@ -717,15 +717,59 @@ async def process_username(message: types.Message, state: FSMContext):
         break
         
     if not user:
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🆔 Ввести ID вручную", callback_data="add_client_manual_id")
+        builder.adjust(1)
+        
         await message.answer(
             f"❌ Пользователь с ником @{username} не найден в базе бота.\n\n"
             f"Клиент должен сначала запустить бота (/start), чтобы мы могли его активировать. "
-            f"Попробуйте другой ник или попросите его нажать /start."
+            f"Попробуйте другой ник или введите Telegram ID вручную, если он вам известен.",
+            reply_markup=builder.as_markup()
         )
         return
     
     await state.update_data(tg_id=user.get('tg_id'))
     await state.set_state(AdminRegistration.waiting_for_full_name)
+    
+@admin_router.callback_query(F.data == "add_client_manual_id")
+async def add_client_manual_id_callback(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(AdminRegistration.waiting_for_manual_id)
+    await callback.message.answer("Введите числовой Telegram ID пользователя:", reply_markup=get_navigation_keyboard())
+    await callback.answer()
+
+@admin_router.message(AdminRegistration.waiting_for_manual_id)
+async def process_manual_id(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❌ ID должен состоять только из цифр. Попробуйте еще раз:")
+        return
+        
+    tg_id = int(message.text)
+    user = await FirestoreDB.get_user(tg_id)
+    
+    if not user:
+        await message.answer(
+            f"❌ Пользователь с ID {tg_id} не найден в базе бота.\n\n"
+            f"Он ДОЛЖЕН нажать /start в боте хотя бы один раз."
+        )
+        return
+        
+    await state.update_data(tg_id=tg_id)
+    await state.set_state(AdminRegistration.waiting_for_full_name)
+    
+    from aiogram.utils.keyboard import ReplyKeyboardBuilder
+    from aiogram.types import KeyboardButton
+    builder = ReplyKeyboardBuilder()
+    builder.button(text=user.get('full_name') or "Без имени")
+    builder.row(KeyboardButton(text="⬅️ Назад"), KeyboardButton(text="🏠 В меню"))
+    builder.adjust(1, 2)
+    
+    await message.answer(
+        f"✅ Пользователь найден: {user.get('full_name')} (ID: {tg_id})\n"
+        f"Введите Имя для Спринта (или выберите предложенное):",
+        reply_markup=builder.as_markup(resize_keyboard=True)
+    )
     
     from aiogram.utils.keyboard import ReplyKeyboardBuilder
     from aiogram.types import KeyboardButton
@@ -1208,20 +1252,33 @@ async def confirm_delete_client_handler(callback: types.CallbackQuery):
 
 @admin_router.callback_query(F.data.startswith("execute_delete_"))
 async def execute_delete_client_handler(callback: types.CallbackQuery, bot: Bot):
-    tg_id = int(callback.data.split("_")[-1])
-    
-    from utils.gsheets_api import delete_user_from_sheets
-    await delete_user_from_sheets(tg_id)
-    await FirestoreDB.delete_user_and_data(tg_id)
-    
-    await callback.message.edit_text(f"💀 Клиент {tg_id} и все его данные окончательно удалены из системы.")
-    await callback.answer()
-    
-    # 4. Optional: Notify client? (Only if bot is not blocked)
     try:
-        await bot.send_message(tg_id, "ℹ️ Твой доступ к Shadow Sprint был аннулирован. Все данные удалены.")
-    except:
-        pass
+        data_parts = callback.data.split("_")
+        tg_id_str = data_parts[-1]
+        tg_id = int(tg_id_str)
+        
+        await callback.answer("⏳ Удаление...") # Immediate feedback
+        
+        from utils.gsheets_api import delete_user_from_sheets
+        # Try to delete from sheets but don't block everything if it fails
+        try:
+            await delete_user_from_sheets(tg_id)
+        except Exception as e:
+            logging.error(f"Failed to delete from sheets: {e}")
+            
+        await FirestoreDB.delete_user_and_data(tg_id)
+        
+        await callback.message.edit_text(f"💀 Клиент {tg_id} и все его данные окончательно удалены из системы.")
+        
+        # Optional: Notify client? (Only if bot is not blocked)
+        try:
+            await bot.send_message(tg_id, "ℹ️ Твой доступ к Shadow Sprint был аннулирован. Все данные удалены.")
+        except:
+            pass
+            
+    except Exception as e:
+        logging.error(f"Error in execute_delete_client_handler: {e}")
+        await callback.answer(f"❌ Ошибка при удалении: {e}", show_alert=True)
 
 # --- Report Review Handlers ---
 
@@ -1347,10 +1404,7 @@ async def admin_custom_report_handler(message: types.Message, state: FSMContext,
     except Exception as e:
         await message.answer(f"❌ Ошибка при отправке: {e}")
 
-@admin_router.message(StateFilter("*"))
+@admin_router.message(F.from_user.id.func(is_admin), StateFilter("*"))
 async def admin_catch_all(message: types.Message):
-    if not is_admin(message.from_user.id):
-        return
-        
     logger.info(f"❓ [ADMIN] Unmatched message from {message.from_user.id}: '{message.text}'")
 
