@@ -142,7 +142,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
                 for admin_id in ADMIN_IDS:
                     try: await bot.send_message(admin_id, err_msg)
                     except: pass
-                break
+                continue
             
             import random
             full_name = u.get('full_name', '')
@@ -248,7 +248,7 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
                 for admin_id in ADMIN_IDS:
                     try: await bot.send_message(admin_id, err_msg)
                     except: pass
-                break
+                continue
                 
             if not questions_text:
                 questions_text = (

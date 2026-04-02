@@ -97,10 +97,15 @@ async def trigger_weekly_handler(message: types.Message, bot: Bot):
 
 # --- Navigation Handlers ---
 
+@admin_router.message(Command("start"), F.from_user.id.func(is_admin), StateFilter("*"))
+@admin_router.message(Command("menu"), F.from_user.id.func(is_admin), StateFilter("*"))
 @admin_router.message(F.text == "🏠 В меню", F.from_user.id.func(is_admin), StateFilter("*"))
-async def back_to_menu_handler(message: types.Message, state: FSMContext):
+async def admin_main_menu_handler(message: types.Message, state: FSMContext):
+    """Ensure admins ALWAYS get the admin menu on /menu, /start or '🏠 В меню' button."""
     await state.clear()
-    await message.answer("Возвращаемся в главное меню.", reply_markup=get_main_keyboard(is_admin=True))
+    await message.answer("Главное меню управления", reply_markup=get_main_keyboard(is_admin=True))
+
+
 
 @admin_router.message(F.text == "⬅️ Назад", AdminRegistration.waiting_for_full_name)
 async def add_client_back_to_username(message: types.Message, state: FSMContext):
@@ -1412,7 +1417,14 @@ async def admin_custom_report_handler(message: types.Message, state: FSMContext,
     except Exception as e:
         await message.answer(f"❌ Ошибка при отправке: {e}")
 
-@admin_router.message(F.from_user.id.func(is_admin), StateFilter("*"))
+@admin_router.message(F.from_user.id.func(is_admin), ~F.text.startswith("/"), StateFilter("*"))
 async def admin_catch_all(message: types.Message):
+    """
+    Catch-all for admins: Only process if it's NOT a command.
+    Commands (like /start) should fall through to client_router if not handled in admin_router.
+    """
     logger.info(f"❓ [ADMIN] Unmatched message from {message.from_user.id}: '{message.text}'")
+    # For admins, we might want to remind them about the menu
+    await message.answer("⚠️ Команда не распознана. Используйте /menu для доступа к панели управления.")
+
 
