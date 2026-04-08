@@ -100,6 +100,17 @@ async def trigger_weekly_handler(message: types.Message, bot: Bot):
 @admin_router.message(Command("start"), F.from_user.id.func(is_admin), StateFilter("*"))
 @admin_router.message(Command("menu"), F.from_user.id.func(is_admin), StateFilter("*"))
 @admin_router.message(F.text == "🏠 В меню", F.from_user.id.func(is_admin), StateFilter("*"))
+async def admin_menu_handler(message: types.Message, state: FSMContext):
+    """Entry point for administrators."""
+    await state.clear()
+    text = (
+        f"👑 {hbold('Shadow Control Center')}\n\n"
+        f"Добро пожаловать, {message.from_user.full_name}.\n"
+        f"Используйте кнопки ниже для управления системой."
+    )
+    await message.answer(text, reply_markup=get_main_keyboard(is_admin=True))
+@admin_router.message(Command("menu"), F.from_user.id.func(is_admin), StateFilter("*"))
+@admin_router.message(F.text == "🏠 В меню", F.from_user.id.func(is_admin), StateFilter("*"))
 async def admin_main_menu_handler(message: types.Message, state: FSMContext):
     """Ensure admins ALWAYS get the admin menu on /menu, /start or '🏠 В меню' button."""
     await state.clear()

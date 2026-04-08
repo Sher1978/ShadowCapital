@@ -198,9 +198,12 @@ async def sync_gsheets_to_firestore():
         day_str = str(row[COL_DAY]).strip()
         if not day_str.isdigit(): continue
         
+        scenario_raw = str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip()
+        scenario_val = "all" if not scenario_raw or "all" in scenario_raw else scenario_raw
+        
         tasks_to_cache.append({
             "day": int(day_str),
-            "scenario": str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip() or "all",
+            "scenario": scenario_val,
             "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day_str}",
             "phase": row[COL_PHASE] if len(row) > COL_PHASE else "",
             "theory": row[COL_THEORY] if len(row) > COL_THEORY else "",
@@ -291,10 +294,14 @@ async def get_task_2_0(day: int, scenario: str) -> Optional[Dict[str, Any]]:
     target_scenario = str(scenario).lower().strip()
     for row in records[1:]:
         if not row: continue
-        sheet_scenario = str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip()
         sheet_day = str(row[COL_DAY] if len(row) > COL_DAY else "")
+        if sheet_day != str(day):
+            continue
+            
+        sheet_scenario_raw = str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip()
+        sheet_scenario = "all" if not sheet_scenario_raw or "all" in sheet_scenario_raw else sheet_scenario_raw
         
-        if sheet_day == str(day) and (sheet_scenario == target_scenario or sheet_scenario in ["all", ""]):
+        if sheet_scenario == target_scenario or sheet_scenario == "all":
             return {
                 "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day}",
                 "phase": row[COL_PHASE] if len(row) > COL_PHASE else "",

@@ -10,6 +10,7 @@ from config import ADMIN_IDS
 from utils.analysis import generate_weekly_briefing, generate_group_weekly_summary
 from utils.gsheets_api import get_daily_task_from_sheets, get_evening_question_from_sheets, get_task_2_0
 from aiogram.utils.markdown import hbold, hitalic
+from utils.timezone_utils import get_user_current_day
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None) -> int:
                 try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
                 except: continue
             
-            day = (now - start_date).days + 1
+            day = get_user_current_day(start_date, u.get('timezone', 'UTC+7'))
             try:
                 task_data = await get_task_2_0(day, u.get('scenario_type') or "Sovereign")
                 if not task_data:
@@ -235,7 +236,7 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
                 try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
                 except: continue
                 
-            day = (now - start_date).days + 1
+            day = get_user_current_day(start_date, u.get('timezone', 'UTC+7'))
             try:
                 task_data = await get_task_2_0(day, u.get('scenario_type') or "Sovereign")
                 if task_data and task_data.get('evening_report'):

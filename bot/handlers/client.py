@@ -21,7 +21,7 @@ client_router = Router()
 
 async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: dict, log_id: str):
     """Sends a detailed client report to all administrators in Vietnam (UTC+7) time."""
-    from utils.timezone_utils import get_now_in_tz, adjust_to_tz
+    from utils.timezone_utils import get_now_in_tz, adjust_to_tz, get_user_current_day
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     
     # User-requested default: Vietnam (UTC+7)
@@ -29,15 +29,7 @@ async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: d
     
     # Calculate sprint day using Vietnam time for consistency
     start_date = user.get('sprint_start_date') or user.get('created_at')
-    day = "N/A"
-    if start_date:
-        try:
-            # Adjust start_date to VN time before comparing
-            start_date_vn = adjust_to_tz(start_date, "UTC+7")
-            day = (now_vn.date() - start_date_vn.date()).days + 1
-            day = max(1, day)
-        except:
-            day = "Error"
+    day = get_user_current_day(start_date, "UTC+7")
 
     admin_msg = (
         f"📩 {hbold('НОВЫЙ ОТЧЕТ КЛИЕНТА')}\n\n"
@@ -409,10 +401,10 @@ async def curator_question_handler(message: types.Message, bot: Bot):
     )
         
     await message.answer(
-        f"🎯 {hbold('Твой SFI Index: ')}{round(sfi_index, 2)}\n\n"
+        f"🎯 {hbold('Твой SFI Index: ')}{round(user.get('sfi_index', 0), 2)}\n\n"
         f"Твой результат зафиксирован. Мы уже готовим для тебя индивидуальную программу обучения. "
         f"Нажми кнопку ниже, чтобы подать заявку на участие в Спринте!",
-        reply_markup=get_main_keyboard()
+        reply_markup=get_main_keyboard(is_active=False)
     )
 
 
@@ -847,6 +839,47 @@ async def confirm_log_handler(callback: types.CallbackQuery, state: FSMContext, 
     await process_shadow_log(callback.message, bot, user, content, is_voice, file_id)
     await state.clear()
     await callback.answer("Отправлено!")
+
+@client_router.callback_query(F.data.startswith("task_level:"))
+async def task_level_selection_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if not user: return
+    
+    level_str = callback.data.split(":")[1]
+    # Map level string to numeric value (used in SFI calculation later)
+    level_map = {"light": 1, "medium": 2, "hard": 3}
+    level_val = level_map.get(level_str, 2)
+    
+    # Save the selected level for the day
+    await FirestoreDB.update_user(user['id'], {"current_day_level": level_val})
+    
+    # Fetch task content based on level
+    from utils.gsheets_api import get_task_2_0
+    from utils.timezone_utils import get_user_current_day
+    
+    start_date = user.get('sprint_start_date') or user.get('created_at')
+    day = get_user_current_day(start_date, user.get('timezone', 'UTC+7'))
+    task_data = await get_task_2_0(day, user.get('scenario_type', 'Sovereign'))
+    
+    if not task_data:
+        await callback.answer("Ошибка: данные задачи не найдены.")
+        return
+        
+    # Get the specific level text from Task Engine 2.0
+    task_text = task_data.get(f'task_{level_str}') or task_data.get('task_medium') or "Задача на сегодня загружается..."
+    context_text = task_data.get(f'context_{level_str}') or task_data.get('context_medium', '')
+    tool_text = task_data.get(f'tool_{level_str}') or task_data.get('tool_medium', '')
+    
+    full_task_msg = (
+        f"🎯 {hbold('ТВОЕ ЗАДАНИЕ (' + level_str.upper() + ')')}\n\n"
+        f"{task_text}\n\n"
+        f"🔍 {hbold('КОНТЕКСТ')}\n{context_text}\n\n"
+        f"🛠 {hbold('ИНСТРУМЕНТ')}\n{tool_text}\n\n"
+        f"🏁 {hbold('Когда закончишь, пришли отчет текстом или голосом.')}"
+    )
+    
+    await callback.message.edit_text(full_task_msg)
+    await callback.answer()
 
 @client_router.callback_query(F.data == "edit_log")
 async def edit_log_handler(callback: types.CallbackQuery, state: FSMContext):

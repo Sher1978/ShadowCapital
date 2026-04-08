@@ -48,3 +48,17 @@ def adjust_to_tz(dt, tz_str="UTC+7"):
     except Exception as e:
         logging.warning(f"Failed to adjust datetime to '{tz_str}': {e}")
         return dt
+def get_user_current_day(start_date, tz_str="UTC+7", now_override=None):
+    """
+    Calculates the sprint day (1-indexed) based on the user's local calendar.
+    Day 1 is the calendar day they started.
+    """
+    if not start_date:
+        return 1
+        
+    now_user = get_now_in_tz(tz_str) if now_override is None else adjust_to_tz(now_override, tz_str)
+    start_user = adjust_to_tz(start_date, tz_str)
+    
+    # Calculate difference in days between the two dates
+    delta = now_user.date() - start_user.date()
+    return delta.days + 1
