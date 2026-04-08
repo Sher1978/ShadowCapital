@@ -100,11 +100,11 @@ async def get_id_info_handler(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("Отправь мне видео-кружок, и я пришлю тебе его `file_id` для настройки воронки.")
 
-@admin_router.message(F.video_note, F.from_user.id.func(is_admin), StateFilter("*"))
+@admin_router.message(F.video_note | F.video, F.from_user.id.func(is_admin), StateFilter("*"))
 async def admin_video_note_handler(message: types.Message):
-    file_id = message.video_note.file_id
-    logger.info(f"📹 [ADMIN] Captured Video Note ID: {file_id}")
-    await message.answer(f"✅ {hbold('FILE_ID кружка:')}\n\n`{file_id}`\n\nИспользуй его в `utils/initiation_constants.py`.")
+    file_id = message.video_note.file_id if message.video_note else message.video.file_id
+    logger.info(f"📹 [ADMIN] Captured Video ID: {file_id}")
+    await message.answer(f"✅ {hbold('FILE_ID медиа-файла:')}\n\n`{file_id}`\n\nИспользуй его в `utils/initiation_constants.py`.")
 
 # --- Navigation Handlers ---
 
