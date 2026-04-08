@@ -11,7 +11,7 @@ from database.firebase_db import FirestoreDB
 from config import ADMIN_IDS
 from utils.initiation_constants import (
     VIDEO_VERDICT, VIDEO_CURRENCY, VERDICT_TEXTS, 
-    ROI_MAP, CURRENCY_BLOW, FINAL_OFFER_TEXT
+    get_roi_report, CURRENCY_BLOW, FINAL_OFFER_TEXT
 )
 
 initiation_router = Router()
@@ -62,7 +62,8 @@ async def start_shadow_initiation(message: types.Message, state: FSMContext, sce
     
     # Step 2: ROI Table after 3 seconds
     await asyncio.sleep(3)
-    await message.answer(ROI_MAP)
+    roi_report = get_roi_report(scenario)
+    await message.answer(roi_report)
     
     # Step 3: Question 1
     await asyncio.sleep(1)

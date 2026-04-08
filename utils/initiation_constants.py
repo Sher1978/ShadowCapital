@@ -40,30 +40,43 @@ VERDICT_TEXTS = {
     )
 }
 
-# --- ROI Table (Markdown) ---
-ROI_MAP = (
-    f"📊 {hbold('Теневой Профит: Твои показатели через 30 дней')}\n\n"
-    f"{hbold('💰 ДЕНЬГИ')}\n"
-    f"Sovereign: Возврат «слитых» ресурсов.\n"
-    f"Expansion: Рост чека в 2–3 раза.\n"
-    f"Vitality: Прибыль через скорость.\n"
-    f"Architect: Квантовый скачок в хаосе.\n\n"
-    f"{hbold('⏳ ВРЕМЯ')}\n"
-    f"Sovereign: +15 часов свободы в неделю.\n"
-    f"Expansion: 0 минут ожидания разрешений.\n"
-    f"Vitality: 4 часа работы вместо 40.\n"
-    f"Architect: Экономия годов жизни.\n\n"
-    f"{hbold('👑 СТАТУС')}\n"
-    f"Sovereign: Тишина и подчинение.\n"
-    f"Expansion: Имя-бренд, центр внимания.\n"
-    f"Vitality: Животный авторитет.\n"
-    f"Architect: Репутация провидца.\n\n"
-    f"{hbold('🔥 ЛИБИДО')}\n"
-    f"Sovereign: {hbold('Ведущая роль в жизни.')}\n"
-    f"Expansion: {hbold('Магнетизм масштаба.')}\n"
-    f"Vitality: {hbold('Пик витальной энергии.')}\n"
-    f"Architect: {hbold('Творческий экстаз.')}"
-)
+ROI_DATA = {
+    "A": {
+        "money": "Возврат «слитых» ресурсов.",
+        "time": "+15 часов свободы в неделю.",
+        "status": "Тишина и подчинение.",
+        "libido": "Ведущая роль в жизни."
+    },
+    "B": {
+        "money": "Рост чека в 2–3 раза.",
+        "time": "0 минут ожидания разрешений.",
+        "status": "Имя-бренд, центр внимания.",
+        "libido": "Магнетизм масштаба."
+    },
+    "C": {
+        "money": "Прибыль через скорость.",
+        "time": "4 часа работы вместо 40.",
+        "status": "Животный авторитет.",
+        "libido": "Пик витальной энергии."
+    },
+    "D": {
+        "money": "Квантовый скачок в хаосе.",
+        "time": "Экономия годов жизни.",
+        "status": "Репутация провидца.",
+        "libido": "Творческий экстаз."
+    }
+}
+
+def get_roi_report(scenario: str) -> str:
+    """Generates a personalized ROI report based on the scenario."""
+    data = ROI_DATA.get(scenario, ROI_DATA["A"])
+    return (
+        f"📊 {hbold('Теневой Профит: Твои показатели через 30 дней')}\n\n"
+        f"💰 {hbold('ДЕНЬГИ')}: {data['money']}\n"
+        f"⏳ {hbold('ВРЕМЯ')}: {data['time']}\n"
+        f"👑 {hbold('СТАТУС')}: {data['status']}\n"
+        f"🔥 {hbold('ЛИБИДО')}: {data['libido']}"
+    )
 
 # --- Currency Choice Blow ---
 CURRENCY_BLOW = {
