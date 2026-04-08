@@ -3,7 +3,7 @@ from aiogram.utils.markdown import hbold, hitalic
 # --- Video Placeholder IDs ---
 # Replace these with real Telegram file_ids once uploaded
 VIDEO_VERDICT = {
-    "A": "Sher_Verdict_A_Placeholder",
+    "A": "BAACAgIAAxkBAAIHGmnWl5TVI748eYE_UvU-8B6LUx0tAAIumwAC3l6xSre88v3_C4JqOwQ",
     "B": "Sher_Verdict_B_Placeholder",
     "C": "Sher_Verdict_C_Placeholder",
     "D": "Sher_Verdict_D_Placeholder"
