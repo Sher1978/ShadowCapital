@@ -47,6 +47,7 @@ async def main() -> None:
         from bot.handlers.client import client_router
         from bot.handlers.admin import admin_router
         from bot.handlers.settings import settings_router
+        from bot.handlers.initiation import initiation_router
         logger.info("📦 [STARTUP] Phase 2.3: Loading middlewares...")
         from bot.middlewares.fsm_reset import FsmResetMiddleware
         logger.info("📦 [STARTUP] Phase 2.4: Loading scheduler...")
@@ -75,6 +76,7 @@ async def main() -> None:
         
         # Register Middlewares & Routers
         dp.message.outer_middleware(FsmResetMiddleware())
+        dp.include_router(initiation_router)
         dp.include_router(settings_router)
         dp.include_router(admin_router)
         dp.include_router(client_router)

@@ -32,6 +32,11 @@ class ClientSettings(StatesGroup):
     waiting_for_morning_time = State()
     waiting_for_evening_time = State()
 
+class InitiationStates(StatesGroup):
+    waiting_for_action = State()
+    waiting_for_environment = State()
+    waiting_for_currency = State()
+
 class SettingsState(StatesGroup):
     waiting_for_time = State()
     waiting_for_time_type = State()

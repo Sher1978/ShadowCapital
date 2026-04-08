@@ -56,14 +56,14 @@ async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: d
 @client_router.message(CommandStart())
 @client_router.message(Command("menu"))
 @client_router.message(F.text == "🏠 В меню")
-async def command_start_handler(message: types.Message, command: CommandObject = None) -> None:
+async def command_start_handler(message: types.Message, state: FSMContext, bot: Bot, command: CommandObject = None) -> None:
     is_admin_user = message.from_user.id in ADMIN_IDS
     
     # Handle Deep Linking (SFI Result)
     if command and command.args:
         args = command.args
         if args.startswith("W-"):
-            await handle_sfi_deep_link(message, args)
+            await handle_sfi_deep_link(message, bot, args)
             return
 
     user = await FirestoreDB.get_user(message.from_user.id)
@@ -90,7 +90,7 @@ async def command_start_handler(message: types.Message, command: CommandObject =
         reply_markup=get_main_keyboard(is_admin_user, is_active=is_active)
     )
 
-async def handle_sfi_deep_link(message: types.Message, uuid: str):
+async def handle_sfi_deep_link(message: types.Message, bot: Bot, uuid: str):
     """Handles logic when user comes from SFI Web Test."""
     lead = await FirestoreDB.get_sfi_lead(uuid)
     if not lead:
