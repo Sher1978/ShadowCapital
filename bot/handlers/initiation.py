@@ -72,7 +72,7 @@ async def start_shadow_initiation(message: types.Message, state: FSMContext, sce
     )
     await state.set_state(InitiationStates.waiting_for_action)
 
-@initiation_router.message(InitiationStates.waiting_for_action, F.text)
+@initiation_router.message(InitiationStates.waiting_for_action, F.text, ~F.text.startswith("/"))
 async def process_action_step(message: types.Message, state: FSMContext):
     await state.update_data(action_answer=message.text)
     
@@ -81,7 +81,7 @@ async def process_action_step(message: types.Message, state: FSMContext):
     )
     await state.set_state(InitiationStates.waiting_for_environment)
 
-@initiation_router.message(InitiationStates.waiting_for_environment, F.text)
+@initiation_router.message(InitiationStates.waiting_for_environment, F.text, ~F.text.startswith("/"))
 async def process_environment_step(message: types.Message, state: FSMContext):
     await state.update_data(env_answer=message.text)
     

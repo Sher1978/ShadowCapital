@@ -99,7 +99,7 @@ async def trigger_weekly_handler(message: types.Message, bot: Bot):
 async def get_id_info_handler(message: types.Message):
     await message.answer("Отправь мне видео-кружок, и я пришлю тебе его `file_id` для настройки воронки.")
 
-@admin_router.message(F.video_note, F.from_user.id.func(is_admin))
+@admin_router.message(F.video_note, F.from_user.id.func(is_admin), StateFilter("*"))
 async def admin_video_note_handler(message: types.Message):
     file_id = message.video_note.file_id
     await message.answer(f"✅ {hbold('FILE_ID кружка:')}\n\n`{file_id}`\n\nИспользуй его в `utils/initiation_constants.py`.")
