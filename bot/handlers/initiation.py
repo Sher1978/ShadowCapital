@@ -150,7 +150,8 @@ async def finish_initiation(callback: types.CallbackQuery, state: FSMContext, bo
             "username": callback.from_user.username,
             "full_name": callback.from_user.full_name
         }
-        await FirestoreDB.create_user(user)
+        doc_id = await FirestoreDB.create_user(user)
+        user['id'] = doc_id
 
     # Save to Firestore
     await FirestoreDB.update_user(user['id'], {
