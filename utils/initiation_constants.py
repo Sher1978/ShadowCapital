@@ -4,8 +4,8 @@ from aiogram.utils.markdown import hbold, hitalic
 # Replace these with real Telegram file_ids once uploaded
 VIDEO_VERDICT = {
     "A": "BAACAgIAAxkBAAIHGmnWl5TVI748eYE_UvU-8B6LUx0tAAIumwAC3l6xSre88v3_C4JqOwQ",
-    "B": "Sher_Verdict_B_Placeholder",
-    "C": "Sher_Verdict_C_Placeholder",
+    "B": "BAACAgIAAxkBAAIHHmnWl_CAlVErCdb0rbUe9qze1v1VAAIvmwAC3l6xSqVcSWtC2cwaOwQ",
+    "C": "BAACAgIAAxkBAAIHImnWmC2Dng6kZ7dg4jNok0NTjD-8AAIxmwAC3l6xShcgTnjEDYO4OwQ",
     "D": "Sher_Verdict_D_Placeholder"
 }
 
