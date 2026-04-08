@@ -22,7 +22,7 @@ async def notify_admin_initiation(bot: Bot, user: dict, data: dict):
     tg_id = user.get('tg_id')
     
     msg = (
-        f"🔥 {hbold('НОВАЯ ЗАЯВКА НА АКТИВАЦИЮ!')}\n\n"
+        f"🔥 {hbold('НОВАЯ ЗАЯВКА НА АУДИТ ТЕНИ!')}\n\n"
         f"👤 {hbold('Юзер:')} @{username} ({hcode(tg_id)})\n"
         f"🎬 {hbold('Сценарий:')} {data.get('scenario')}\n"
         f"💎 {hbold('Главный приоритет:')} {data.get('currency_label')}\n"
@@ -133,7 +133,7 @@ async def process_currency_choice(callback: types.CallbackQuery, state: FSMConte
     await asyncio.sleep(2)
     
     builder = InlineKeyboardBuilder()
-    builder.button(text="⚡️ Записаться на Активацию к Шеру", callback_data="initiation_finish")
+    builder.button(text="⚡️ Записаться на Аудит Тени к Шеру", callback_data="initiation_finish")
     
     await callback.message.answer(FINAL_OFFER_TEXT, reply_markup=builder.as_markup())
     await callback.answer()
