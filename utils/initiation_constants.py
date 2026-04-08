@@ -6,14 +6,14 @@ VIDEO_VERDICT = {
     "A": "BAACAgIAAxkBAAIHGmnWl5TVI748eYE_UvU-8B6LUx0tAAIumwAC3l6xSre88v3_C4JqOwQ",
     "B": "BAACAgIAAxkBAAIHHmnWl_CAlVErCdb0rbUe9qze1v1VAAIvmwAC3l6xSqVcSWtC2cwaOwQ",
     "C": "BAACAgIAAxkBAAIHImnWmC2Dng6kZ7dg4jNok0NTjD-8AAIxmwAC3l6xShcgTnjEDYO4OwQ",
-    "D": "Sher_Verdict_D_Placeholder"
+    "D": "BAACAgIAAxkBAAIHJmnWmFN57mJ1uxj-AloXPdaPl8BdAAIzmwAC3l6xSlruFHMjJAwtOwQ"
 }
 
 VIDEO_CURRENCY = {
-    "money": "Sher_Money_Placeholder",
-    "time": "Sher_Time_Placeholder",
-    "status": "Sher_Status_Placeholder",
-    "libido": "Sher_Libido_Placeholder"
+    "money": "BAACAgIAAxkBAAIHKmnWmIYONxqBO46BgEr8zzDYZ2oKAAI2mwAC3l6xSn_3dT1MQNs_OwQ",
+    "time": "BAACAgIAAxkBAAIHLmnWmKuk9mTexx7kKjzrHZnajfsYAAI4mwAC3l6xSgS-AvBHlHaNOwQ",
+    "status": "BAACAgIAAxkBAAIHMmnWmNhdqRCiwaWJmCAq0XZru_pHAAI6mwAC3l6xSsscdmXsIQy5OwQ",
+    "libido": "BAACAgIAAxkBAAIHNmnWmQ3c2OZRMIsN7-klgK3kJ4zmAAI9mwAC3l6xSkqjCINRMoXyOwQ"
 }
 
 # --- Verdict Texts ---
