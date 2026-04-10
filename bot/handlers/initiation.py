@@ -1,6 +1,8 @@
 import asyncio
 import logging
 from aiogram import Router, types, F, Bot
+
+logger = logging.getLogger(__name__)
 from aiogram.filters import CommandStart, Command, StateFilter, CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.markdown import hbold, hitalic, hcode
@@ -19,25 +21,38 @@ initiation_router = Router()
 async def notify_admin_initiation(bot: Bot, user: dict, data: dict):
     """Notify admins about a new completed initiation funnel."""
     username = user.get('username') or "N/A"
-    tg_id = user.get('tg_id')
+    # Try to get numeric tg_id from various sources
+    tg_id = user.get('tg_id') or user.get('id')
     
+    logger.info(f"📣 [ADMIN_NOTIFY] Attempting to notify admins about user {tg_id} (@{username})")
+    logger.debug(f"📣 [ADMIN_NOTIFY] Admin list: {ADMIN_IDS}")
+    
+    if not ADMIN_IDS:
+        logger.warning("⚠️ [ADMIN_NOTIFY] No ADMIN_IDS found in config. Notifications will not be sent.")
+        return
+
+    # Ensure tg_id used in URL is numeric string if possible
+    profile_id = str(tg_id)
+
     msg = (
         f"🔥 {hbold('НОВАЯ ЗАЯВКА НА АУДИТ ТЕНИ!')}\n\n"
         f"👤 {hbold('Юзер:')} @{username} ({hcode(tg_id)})\n"
-        f"🎬 {hbold('Сценарий:')} {data.get('scenario')}\n"
-        f"💎 {hbold('Главный приоритет:')} {data.get('currency_label')}\n"
-        f"🚀 {hbold('Действие:')} {data.get('action_answer')}\n"
-        f"👥 {hbold('Окружение:')} {data.get('env_answer')}"
+        f"🎬 {hbold('Сценарий:')} {data.get('scenario', 'Unknown')}\n"
+        f"💎 {hbold('Главный приоритет:')} {data.get('currency_label', 'Unknown')}\n"
+        f"🚀 {hbold('Действие:')} {data.get('action_answer', 'N/A')}\n"
+        f"👥 {hbold('Окружение:')} {data.get('env_answer', 'N/A')}"
     )
     
     builder = InlineKeyboardBuilder()
-    builder.button(text="👤 Профиль клиента", url=f"tg://user?id={tg_id}")
+    if profile_id and profile_id.isdigit():
+        builder.button(text="👤 Профиль клиента", url=f"tg://user?id={profile_id}")
     
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(admin_id, msg, reply_markup=builder.as_markup())
+            logger.info(f"✅ [ADMIN_NOTIFY] Notification sent to admin {admin_id}")
         except Exception as e:
-            logging.error(f"Failed to notify admin {admin_id}: {e}")
+            logger.error(f"❌ [ADMIN_NOTIFY] Failed to notify admin {admin_id}: {e}")
 
 async def start_shadow_initiation(message: types.Message, state: FSMContext, scenario: str):
     """Entry point for the funnel."""
@@ -160,8 +175,11 @@ async def finish_initiation(callback: types.CallbackQuery, state: FSMContext, bo
         "status": "initiation_completed"
     })
     
-    # Notify Admin
-    await notify_admin_initiation(bot, user, data)
+    # Notify Admin (safely)
+    try:
+        await notify_admin_initiation(bot, user, data)
+    except Exception as e:
+        logger.error(f"💥 [INITIATION] Critical failure in notify_admin_initiation: {e}", exc_info=True)
     
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer("✅ Ваша заявка отправлена. Шер свяжется с вами в ближайшее время.")

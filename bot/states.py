@@ -12,6 +12,7 @@ class AdminRegistration(StatesGroup):
 class AdminStates(StatesGroup):
     waiting_for_reply_text = State()
     waiting_for_client_id = State()
+    waiting_for_file_id = State()
     waiting_for_edit_selection = State()
     waiting_for_edit_quality = State()
     waiting_for_edit_scenario = State()

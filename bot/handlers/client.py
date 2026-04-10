@@ -39,7 +39,8 @@ async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: d
         f"🚀 {hbold('День программы:')} {day}\n\n"
         f"📝 {hbold('Текст отчета:')}\n{hitalic(content)}\n\n"
         f"🤖 {hbold('Ответ бота (Scan):')}\n{analysis.get('feedback_to_client', 'Нет ответа')}\n\n"
-        f"📉 {hbold('SFI Score:')} {analysis.get('sfi_score', 'N/A')}"
+        f"📉 {hbold('SFI Score:')} {analysis.get('sfi_score', 'N/A')}\n"
+        f"📂 {hbold('Медиа:')} {'Есть' if analysis.get('media_type') else 'Нет'}"
     )
 
     builder = InlineKeyboardBuilder()
@@ -49,7 +50,25 @@ async def notify_admin_of_report(bot: Bot, user: dict, content: str, analysis: d
 
     for admin_id in ADMIN_IDS:
         try:
-            await bot.send_message(admin_id, admin_msg, reply_markup=builder.as_markup())
+            m_type = analysis.get('media_type')
+            # Video notes (circles) do NOT support captions in Telegram
+            if m_type == "video_note":
+                await bot.copy_message(
+                    chat_id=admin_id,
+                    from_chat_id=user.get('tg_id'),
+                    message_id=analysis.get('original_message_id')
+                )
+                await bot.send_message(admin_id, admin_msg, reply_markup=builder.as_markup())
+            elif m_type and analysis.get('file_id'):
+                await bot.copy_message(
+                    chat_id=admin_id,
+                    from_chat_id=user.get('tg_id'),
+                    message_id=analysis.get('original_message_id'),
+                    caption=admin_msg,
+                    reply_markup=builder.as_markup()
+                )
+            else:
+                await bot.send_message(admin_id, admin_msg, reply_markup=builder.as_markup())
         except Exception as e:
             logging.error(f"Failed to notify admin {admin_id} of report: {e}")
 
@@ -477,7 +496,7 @@ async def re_submit_log_callback(callback: types.CallbackQuery):
     await trigger_shadow_log_prompt(callback.message)
     await callback.answer()
 
-@client_router.message(StateFilter(None), F.voice | F.audio | (F.text & ~F.text.in_(MENU_KEYWORDS)))
+@client_router.message(StateFilter(None), F.voice | F.audio | F.video | F.video_note | F.photo | F.document | (F.text & ~F.text.in_(MENU_KEYWORDS)))
 async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
     user = await FirestoreDB.get_user(message.from_user.id)
     
@@ -493,9 +512,27 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
         return
 
     is_voice = message.voice is not None or message.audio is not None
+    is_video = message.video is not None or message.video_note is not None
+    is_photo = message.photo is not None
+    is_doc = message.document is not None
+
     file_id = None
-    content = message.text
+    media_type = None
+    content = message.text or message.caption
     
+    if is_voice:
+        media_type = "voice"
+        file_id = message.voice.file_id if message.voice else message.audio.file_id
+    elif is_video:
+        media_type = "video_note" if message.video_note else "video"
+        file_id = message.video_note.file_id if message.video_note else message.video.file_id
+    elif is_photo:
+        media_type = "photo"
+        file_id = message.photo[-1].file_id
+    elif is_doc:
+        media_type = "document"
+        file_id = message.document.file_id
+
     if is_voice:
         try:
             file_id = message.voice.file_id if message.voice else message.audio.file_id
@@ -536,11 +573,11 @@ async def log_handler(message: types.Message, bot: Bot, state: FSMContext):
             return
     
     if not content:
-        content = "Empty Log"
+        content = f"[{media_type.upper()} report]" if media_type else "Empty Log"
 
-    await process_shadow_log(message, bot, user, content, is_voice, file_id)
+    await process_shadow_log(message, bot, user, content, is_voice, file_id, media_type)
 
-async def process_shadow_log(message: types.Message, bot: Bot, user: dict, content: str, is_voice: bool, file_id: str = None):
+async def process_shadow_log(message: types.Message, bot: Bot, user: dict, content: str, is_voice: bool, file_id: str = None, media_type: str = None):
     """
     Core logic for processing a shadow log (text or confirmed voice).
     """
@@ -619,6 +656,8 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
         "content": content,
         "is_voice": is_voice,
         "file_id": file_id,
+        "media_type": media_type,
+        "original_message_id": message.message_id,
         "local_file_path": None,
         "is_sabotage": analysis.get("is_sabotage", False),
         "sfi_score": math_sfi,
@@ -680,6 +719,11 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
         "status": analysis.get('status'), "discomfort": analysis.get('discomfort'),
         "penalty": penalty, "sfi_score": math_sfi, "zone": s_zone
     })
+        
+    # Enrich analysis with media info for notification
+    analysis['media_type'] = media_type
+    analysis['file_id'] = file_id
+    analysis['original_message_id'] = message.message_id
         
     await notify_admin_of_report(bot, user, content, analysis, log_id)
     

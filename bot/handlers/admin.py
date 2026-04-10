@@ -97,14 +97,15 @@ async def trigger_weekly_handler(message: types.Message, bot: Bot):
 
 @admin_router.message(Command("get_id", "file_id"), F.from_user.id.func(is_admin), StateFilter("*"))
 async def get_id_info_handler(message: types.Message, state: FSMContext):
-    await state.clear()
-    await message.answer("Отправь мне видео-кружок, и я пришлю тебе его `file_id` для настройки воронки.")
+    await state.set_state(AdminStates.waiting_for_file_id)
+    await message.answer("Отправь мне видео-кружок или видео, и я пришлю тебе его `file_id` для настройки воронки.")
 
-@admin_router.message(F.video_note | F.video, F.from_user.id.func(is_admin), StateFilter("*"))
-async def admin_video_note_handler(message: types.Message):
+@admin_router.message(F.video_note | F.video, AdminStates.waiting_for_file_id)
+async def admin_video_note_handler(message: types.Message, state: FSMContext):
     file_id = message.video_note.file_id if message.video_note else message.video.file_id
     logger.info(f"📹 [ADMIN] Captured Video ID: {file_id}")
     await message.answer(f"✅ {hbold('FILE_ID медиа-файла:')}\n\n`{file_id}`\n\nИспользуй его в `utils/initiation_constants.py`.")
+    await state.clear()
 
 # --- Navigation Handlers ---
 
