@@ -125,7 +125,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None, bypass_audit: bool =
                 try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
                 except: continue
             
-                        day = get_user_current_day(start_date, u.get('timezone', 'UTC+7'))
+            day = get_user_current_day(start_date, u.get('timezone', 'UTC+7'))
             
             # --- SHADOW CURRENCY AUDIT TRIGGER ---
             if not bypass_audit and day in [1, 7, 22]:
@@ -231,7 +231,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None, bypass_audit: bool =
     logger.info(f"рџЊ… [SCHEDULER] Finished. Total sent: {count}")
     return count
 
-async def request_evening_logs(bot: Bot, user: dict = None) -> int:
+async def request_evening_logs(bot: Bot, user: dict = None, bypass_audit: bool = False) -> int:
     """Sends evening log request to a specific user or all active users. Returns count sent."""
     now = datetime.now(timezone.utc)
     logger.info(f"рџЊ™ [SCHEDULER] Starting request_evening_logs. Manual: {user is not None}")
@@ -253,7 +253,7 @@ async def request_evening_logs(bot: Bot, user: dict = None) -> int:
                 try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
                 except: continue
                 
-                        day = get_user_current_day(start_date, u.get('timezone', 'UTC+7'))
+            day = get_user_current_day(start_date, u.get('timezone', 'UTC+7'))
             
             # --- SHADOW CURRENCY AUDIT TRIGGER ---
             if not bypass_audit and day in [1, 7, 22]:

@@ -119,6 +119,13 @@ async def audit_finish_handler(callback: types.CallbackQuery, state: FSMContext,
     # Update main user document for AI context
     await FirestoreDB.update_user(user['id'], {"focus_currency": focus})
     
+    # Sync to GSheets
+    from utils.gsheets_api import sync_user_to_sheets
+    try:
+        await sync_user_to_sheets(user['id'], {"focus_currency": focus})
+    except Exception as e:
+        logging.error(f"Failed to sync focus to sheets: {e}")
+    
     # Send user summary
     await callback.message.edit_text(
         f"✅ {hbold('АУДИТ ЗАВЕРШЕН')}\n\n"
