@@ -85,7 +85,7 @@ async def sync_user_to_sheets(user_data: dict):
             except gspread.WorksheetNotFound:
                 worksheet = sh.add_worksheet(title="USER_STATE", rows="100", cols="10")
                 worksheet.append_row([
-                    "User_ID", "Имя", "Quality_L1", "Scenario", 
+                    "User_ID", "Имя", "Quality_L1", "Scenario", "Focus",
                     "SFI_Index", "Red_Flags", "Friction_Level", 
                     "Last_Insight", "Last_Update"
                 ])
@@ -109,6 +109,7 @@ async def sync_user_to_sheets(user_data: dict):
                 user_data.get('name', ''),
                 user_data.get('target_quality', ''),
                 user_data.get('scenario', ''),
+                user_data.get('focus_currency', 'N/A'),
                 str(round(sfi, 2)),
                 str(flags),
                 friction,
@@ -117,7 +118,7 @@ async def sync_user_to_sheets(user_data: dict):
             ]
             
             if cell:
-                worksheet.update(f"A{cell.row}:I{cell.row}", [row_data])
+                worksheet.update(f"A{cell.row}:J{cell.row}", [row_data])
             else:
                 worksheet.append_row(row_data)
         except Exception as e:

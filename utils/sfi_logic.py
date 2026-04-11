@@ -1,8 +1,8 @@
-import logging
+﻿import logging
 
 def calculate_daily_sfi(level: int, status: int, penalty: int = 0) -> float:
     """
-    Calculates the Daily Shadow Friction Index (SFI).
+    Calculates the Daily Shadow Braking Index (SFI).
     Formula: SFI = ((4 - L) + (1 - S) * 3 + Penalty) / 10 * 100%
     
     Args:
@@ -55,6 +55,6 @@ def get_final_verdict(avg_sfi: float) -> str:
     elif avg_sfi <= 50:
         return "📈 РОСТ: Хорошая динамика, но есть слепые пятна."
     elif avg_sfi <= 80:
-        return "⚠️ ТРЕНИЕ: Высокое сопротивление, риск отката."
+        return "⚠️ ТРЕНИЕ: Высокое торможение, риск отката."
     else:
         return "❌ ТУПИК: Продукт не принят психикой, нужен перезапуск."

@@ -1,4 +1,4 @@
-Игорь, это стратегическое решение превращает сканирование из простого теста в легендарный квест, который Скаут запомнит надолго. Мы создаем "Операцию 'Золотой Поток'".
+﻿Игорь, это стратегическое решение превращает сканирование из простого теста в легендарный квест, который Скаут запомнит надолго. Мы создаем "Операцию 'Золотой Поток'".
 
 Наша цель — не просто показать ему проблемы, а вручить Карту Сокровищ, которые он прямо сейчас теряет.
 
@@ -46,7 +46,7 @@ A detailed technical blueprint showing the first three fragments of the Golden M
 
 ФРАГМЕНТ №4 (ФИНАЛ): ИНТЕГРАЦИЯ ТЕНИ (THE CITADEL)
 
-Сюжет: Хранитель деактивирован. Скаут интегрировал Тень. Проявляется «Цитадель Мастера». Вся карта сияет. Промпт для генерации:
+Сюжет: Система безопасности деактивирован. Скаут интегрировал Тень. Проявляется «Цитадель Мастера». Вся карта сияет. Промпт для генерации:
 
 A complete, fully revealed technical blueprint of the Golden Map as seen in image\_0.png. It includes all four labeled and etched fragments: "ПОДЪЕМ ЭНЕРГИИ", "СЕТЬ ОКРУЖЕНИЯ", "ПОТОК КАПИТАЛА", and the final central "ЦИТАДЕЛЬ МАСТЕРА" (MASTER'S CITADEL). The citadel is a detailed etched schematic of a fortified alchemical tower labeled "ЦИТАДЕЛЬ МАСТЕРА" with concentric circles. Glowing golden lines connect all four zones perfectly. The alchemical tree symbol from image\_0.png at the center glows intensely. Holographic data streams and blue wireframes from image\_0.png emanate from the map's edge, including "SFI SCORE: 0.74" and "НАЛОГ НА ТРЕНИЕ: $12k/M" (or custom text). The riveted dark metal table and industrial background are sharply focused, highlighting the complete Golden Flow. This final map feels powerful and unified.
 

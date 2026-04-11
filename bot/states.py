@@ -1,4 +1,4 @@
-from aiogram.fsm.state import State, StatesGroup
+﻿from aiogram.fsm.state import State, StatesGroup
 
 class AdminRegistration(StatesGroup):
     waiting_for_username = State()
@@ -41,3 +41,10 @@ class InitiationStates(StatesGroup):
 class SettingsState(StatesGroup):
     waiting_for_time = State()
     waiting_for_time_type = State()
+
+class AuditStates(StatesGroup):
+    waiting_for_money = State()
+    waiting_for_time = State()
+    waiting_for_status = State()
+    waiting_for_drive = State()
+    waiting_for_focus = State()

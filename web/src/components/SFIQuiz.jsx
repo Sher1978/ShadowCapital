@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, ShieldCheck, TrendingUp, Layout as LayoutIcon, ChevronLeft } from 'lucide-react';
 
@@ -61,7 +61,7 @@ export default function SFIQuiz({ onComplete }) {
         <div className="sector-header">
           <span className="sector-tag">Classification: SFI Diagnostic</span>
           <h1 style={{ marginBottom: '0.5rem', fontSize: '2.4rem' }}>SHADOW SCAN <span className="gold-text" style={{ fontSize: '1rem', verticalAlign: 'middle' }}>v2.6</span></h1>
-          <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Оцифруй свою систему и выяви скрытый «Налог на Трение».</p>
+          <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Оцифруй свою систему и выяви скрытый «Налог на Торможение».</p>
         </div>
         
         <div style={{ marginTop: '2.5rem' }}>

@@ -1,4 +1,4 @@
-import firebase_admin
+﻿import firebase_admin
 from firebase_admin import credentials, firestore
 import logging
 import os
@@ -13,12 +13,12 @@ if not firebase_admin._apps:
         if os.path.exists(cred_path):
             cred = credentials.Certificate(cred_path)
             firebase_admin.initialize_app(cred)
-            logging.info("✅ Firebase Admin initialized with credentials.json")
+            logging.info("вњ… Firebase Admin initialized with credentials.json")
         else:
             firebase_admin.initialize_app()
-            logging.info("✅ Firebase Admin initialized with Application Default Credentials")
+            logging.info("вњ… Firebase Admin initialized with Application Default Credentials")
     except Exception as e:
-        logging.error(f"❌ Failed to initialize Firebase Admin: {e}")
+        logging.error(f"вќЊ Failed to initialize Firebase Admin: {e}")
 
 # Use Synchronous Client due to local async hangs
 # HARD-FIX: To ensure Sprint data stability, we explicitly use the known Sprint database ID
@@ -30,8 +30,8 @@ db = firestore.client(database_id=target_db)
 # Secondary client specifically for SFI Diagnostic results in (default) database
 db_sfi = firestore.client(database_id=None) 
 project_id = os.getenv("FIREBASE_PROJECT_ID", "shershadow")
-logging.info(f"🔥 Sync Firestore client created for project: {project_id}, database: {database_id_env}")
-logging.info(f"🔥 SFI Firestore client created for project: {project_id}, database: (default)")
+logging.info(f"рџ”Ґ Sync Firestore client created for project: {project_id}, database: {database_id_env}")
+logging.info(f"рџ”Ґ SFI Firestore client created for project: {project_id}, database: (default)")
 
 class FirestoreDB:
     db = db  # Expose the client
@@ -102,15 +102,15 @@ class FirestoreDB:
     @staticmethod
     async def get_global_settings() -> Dict[str, Any]:
         """Fetch global settings (Sync wrapper)."""
-        logging.info("🔥 FirestoreDB.get_global_settings: Attempting to fetch 'settings/global'...")
+        logging.info("рџ”Ґ FirestoreDB.get_global_settings: Attempting to fetch 'settings/global'...")
         try:
             doc = db.collection("settings").document("global").get()
             if doc.exists:
                 data = doc.to_dict()
-                logging.info(f"🔥 Found global settings: {data}")
+                logging.info(f"рџ”Ґ Found global settings: {data}")
                 return data
             else:
-                logging.warning("🔥 Global settings not found in Firestore, using defaults.")
+                logging.warning("рџ”Ґ Global settings not found in Firestore, using defaults.")
                 defaults = {
                     "morning_time": "09:00",
                     "deadline_time": "20:30",
@@ -120,7 +120,7 @@ class FirestoreDB:
                 db.collection("settings").document("global").set(defaults)
                 return defaults
         except Exception as e:
-            logging.error(f"🔥 Error in get_global_settings: {e}", exc_info=True)
+            logging.error(f"рџ”Ґ Error in get_global_settings: {e}", exc_info=True)
             return {
                 "morning_time": "09:00",
                 "deadline_time": "20:30",
@@ -238,4 +238,28 @@ class FirestoreDB:
                 batch.delete(log.reference)
             batch.delete(user_doc.reference)
             batch.commit()
-            logging.info(f"🔥 Deleted user {tg_id} and their logs from Firestore.")
+            logging.info(f"рџ”Ґ Deleted user {tg_id} and their logs from Firestore.")
+    @staticmethod
+    async def save_audit(user_doc_id: str, day: int, audit_data: Dict[str, Any]):
+        \"\"\"Save a life currency audit for a user (Sync wrapper).\"\"\"
+        audit_data['created_at'] = datetime.now(timezone.utc)
+        audit_data['day'] = day
+        doc_id = f"day_{day}"
+        db.collection("users").document(user_doc_id).collection("audits").document(doc_id).set(audit_data)
+
+    @staticmethod
+    async def get_audit(user_doc_id: str, day: int) -> Optional[Dict[str, Any]]:
+        \"\"\"Fetch audit results for a specific day (Sync wrapper).\"\"\"
+        doc_id = f"day_{day}"
+        doc = db.collection("users").document(user_doc_id).collection("audits").document(doc_id).get()
+        if doc.exists:
+            return doc.to_dict()
+        return None
+
+    @staticmethod
+    async def get_audit_baseline(user_doc_id: str) -> Optional[Dict[str, Any]]:
+        \"\"\"Fetch the first audit (Day 1) for baseline comparison.\"\"\"
+        doc = db.collection("users").document(user_doc_id).collection("audits").document("day_1").get()
+        if doc.exists:
+            return doc.to_dict()
+        return None

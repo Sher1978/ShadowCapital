@@ -598,7 +598,7 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
     user_tz = user.get('timezone', 'UTC+7')
     now_user = get_now_in_tz(user_tz)
     
-    # Fetch Task Engine 2.0 data for Guard Trap and Level
+    # Fetch Task Engine 2.0 data for Braking Trap and Level
     from utils.gsheets_api import get_task_2_0
     start_date = user.get('sprint_start_date') or user.get('created_at')
     if isinstance(start_date, str):
@@ -609,7 +609,7 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
     task_data = await get_task_2_0(day, user.get('scenario_type', 'Sovereign'))
     guard_trap = task_data.get('guard_trap', '') if task_data else ""
     
-    # Re-run analysis with Guard Trap if available
+    # Re-run analysis with Braking Trap if available
     if guard_trap:
         analysis = await analyze_sabotage(
             content, 
@@ -676,7 +676,7 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
     if len(previous_logs) >= 3:
         sfi_history = [l.get('sfi_score', 0.5) for l in previous_logs[:3]]
         if len(sfi_history) == 3 and sfi_history[0] < sfi_history[1] < sfi_history[2]:
-            await message.answer(f"✨ {hbold('Shadow Growth Detected!')} Вижу, как твое сопротивление тает. Ты в потоке.")
+            await message.answer(f"✨ {hbold('Shadow Growth Detected!')} Вижу, как твое торможение тает. Ты в потоке.")
 
     if math_sfi > 70:
         for admin_id in ADMIN_IDS:
@@ -708,6 +708,7 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
         "name": user.get('full_name'),
         "target_quality": user.get('target_quality_l1'),
         "scenario": user.get('scenario_type'),
+        "focus_currency": user.get('focus_currency', 'N/A'),
         "red_flags": update_data.get("red_flags_count", user.get('red_flags_count', 0)),
         "sfi_index": math_sfi / 100.0,
         "last_insight": update_data["last_insight"]

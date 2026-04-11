@@ -497,7 +497,7 @@ async def view_archived_stats_handler(callback: types.CallbackQuery):
         f"👤 Имя: {user.get('full_name')}\n"
         f"📅 День Спринта (на момент архивации): {sprint_day}/30\n"
         f"🎯 Качество (L1): {user.get('target_quality_l1')}\n\n"
-        f"📈 Shadow Friction Index (SFI): {round(sfi, 2)}\n"
+        f"📈 Shadow Braking Index (SFI): {round(sfi, 2)}\n"
         f"🚩 Флаги саботажа: {flags}\n"
         f"🌡 Уровень трения: {friction}\n\n"
         f"💡 {hbold('Последний инсайт:')}\n"
@@ -618,7 +618,7 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
         f"📅 День Спринта: {sprint_day}/30\n"
         f"🎯 Качество (L1): {user.get('target_quality_l1')}\n"
         f"👁 Сценарий: {user.get('scenario_type')}\n\n"
-        f"📈 Shadow Friction Index (SFI): {round(sfi, 2)}\n"
+        f"📈 Shadow Braking Index (SFI): {round(sfi, 2)}\n"
         f"🚩 Флаги саботажа: {flags}\n"
         f"🌡 Уровень трения: {friction}\n\n"
         f"🌍 Часовой пояс: {user.get('timezone', 'UTC+0')}\n"
@@ -958,6 +958,7 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
         "name": data['full_name'],
         "target_quality": data['quality_name'],
         "scenario": scenario_type,
+        "focus_currency": "N/A",
         "red_flags": 0
     })
     
@@ -1060,6 +1061,7 @@ async def process_edit_quality(message: types.Message, state: FSMContext):
             "name": user.get('full_name'),
             "target_quality": new_quality,
             "scenario": user.get('scenario_type'),
+            "focus_currency": user.get('focus_currency', 'N/A'),
             "red_flags": user.get('red_flags_count') or 0,
             "sfi_index": user.get('sfi_index') or 1.0
         })
@@ -1109,7 +1111,7 @@ async def process_edit_scenario(message: types.Message, state: FSMContext):
         "Sovereign": "Возврат личной власти, радикальная ответственность и «вступление на трон» бизнеса.",
         "Expansion": "Снятие внутренних границ, мешающих росту. Работа с «Большой Игрой» и захват новых территорий.",
         "Vitality": "Интеграция Тени для прекращения «слива» энергии в маски. Фокус на эффективности и драйве.",
-        "Architect": "Структурирование хаоса Тени в твердую бизнес-архитектуру. Система на Zero Friction."
+        "Architect": "Структурирование хаоса Тени в твердую бизнес-архитектуру. Система на Active Braking Release."
     }
     
     desc = descriptions.get(scenario_type, "Описание отсутствует.")
@@ -1153,6 +1155,7 @@ async def process_edit_scenario_confirmation(message: types.Message, state: FSMC
             "name": user.get('full_name'),
             "target_quality": user.get('target_quality_l1'),
             "scenario": new_scenario,
+            "focus_currency": user.get('focus_currency', 'N/A'),
             "red_flags": user.get('red_flags_count') or 0,
             "sfi_index": user.get('sfi_index') or 1.0
         })

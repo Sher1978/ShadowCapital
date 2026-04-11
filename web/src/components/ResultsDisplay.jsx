@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { motion } from 'framer-motion';
 
 const ResultsDisplay = ({ result, onRestart }) => {
@@ -30,7 +30,7 @@ const ResultsDisplay = ({ result, onRestart }) => {
       style={{ maxWidth: '650px' }}
     >
       <div className="sfi-hero">
-        <span className="sfi-label">Shadow Friction Index</span>
+        <span className="sfi-label">Shadow Braking Index</span>
         <div className="sfi-number">{sfi_score}%</div>
         <div className="sector-tag" style={{ border: 'none', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)' }}>
           System Archetype: <span className="gold-text" style={{ letterSpacing: '0.1em' }}>{archetype}</span>
