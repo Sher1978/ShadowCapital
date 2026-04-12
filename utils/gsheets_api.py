@@ -13,7 +13,7 @@ from config import GOOGLE_SHEET_URL as SPREADSHEET_URL
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 # --- Firebase-as-Cache Implementation ---
-SHEET_NAME_TASK_ENGINE = "NEW_TASK_ENGINE"
+SHEET_NAME_TASK_ENGINE = "TASK_ENGINE_2"
 SHEET_NAME_INSTRUCTIONS = "INSTRUCTIONS"
 
 async def get_all_values(sheet_name: str) -> Optional[List[List[Any]]]:
@@ -128,7 +128,7 @@ async def sync_user_to_sheets(user_data: dict):
 
 async def get_daily_task_from_sheets(day: int, scenario: str):
     """
-    Fetches task from CONTENT_TIMELINE sheet based on day and scenario-specific column.
+    Fetches task from task engine sheet based on day and scenario-specific column.
     """
     scenario_map = {
         "sovereign": "Sovereign (Власть и Границы)",
@@ -149,7 +149,7 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
             
         try:
             sh = client.open_by_url(SPREADSHEET_URL)
-            worksheet = sh.worksheet("CONTENT_TIMELINE")
+            worksheet = sh.worksheet(SHEET_NAME_TASK_ENGINE)
             records = worksheet.get_all_records()
             for row in records:
                 if str(row.get('День')) == str(day):
@@ -164,7 +164,7 @@ async def get_daily_task_from_sheets(day: int, scenario: str):
             if "permission" in err_msg.lower():
                 raise RuntimeError("Permission denied for Spreadsheet. Check service account access (Editor).")
             if "not found" in err_msg.lower() and "worksheet" in err_msg.lower():
-                raise RuntimeError("Worksheet 'CONTENT_TIMELINE' not found in the spreadsheet.")
+                raise RuntimeError(f"Worksheet '{SHEET_NAME_TASK_ENGINE}' not found in the spreadsheet.")
             raise RuntimeError(f"GSheets error: {err_msg}")
     return await asyncio.to_thread(_get_task)
 

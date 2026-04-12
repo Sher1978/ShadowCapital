@@ -5,6 +5,11 @@ import os
 from aiohttp import web
 
 # 0. Immediate Logging Setup
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -48,6 +53,7 @@ async def main() -> None:
         from bot.handlers.admin import admin_router
         from bot.handlers.settings import settings_router
         from bot.handlers.initiation import initiation_router
+        from bot.handlers.audit import audit_router
         logger.info("📦 [STARTUP] Phase 2.3: Loading middlewares...")
         from bot.middlewares.fsm_reset import FsmResetMiddleware
         logger.info("📦 [STARTUP] Phase 2.4: Loading scheduler...")
@@ -77,6 +83,7 @@ async def main() -> None:
         # Register Middlewares & Routers
         dp.message.outer_middleware(FsmResetMiddleware())
         dp.include_router(initiation_router)
+        dp.include_router(audit_router)
         dp.include_router(settings_router)
         dp.include_router(admin_router)
         dp.include_router(client_router)

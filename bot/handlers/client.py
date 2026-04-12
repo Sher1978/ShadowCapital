@@ -739,45 +739,7 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
     )
     await message.answer(success_text, reply_markup=get_main_keyboard())
 
-@client_router.callback_query(F.data.startswith("task_level:"))
-async def task_level_selection_handler(callback: types.CallbackQuery, bot: Bot):
-    level_key = callback.data.split(":")[1] # light, medium, hard
-    
-    user = await FirestoreDB.get_user(callback.from_user.id)
-    if not user: return
-    
-    # Fetch task text
-    from utils.gsheets_api import get_task_2_0
-    
-    start_date = user.get('sprint_start_date') or user.get('created_at')
-    if isinstance(start_date, str):
-        try: start_date = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-        except: start_date = datetime.now(timezone.utc)
-        
-    day = (datetime.now(timezone.utc) - start_date).days + 1
-    task_data = await get_task_2_0(day, user.get('scenario_type', 'Sovereign'))
-    
-    if not task_data:
-        await callback.answer("Ошибка: данные задания не найдены.")
-        return
-        
-    task_text = task_data.get(f"task_{level_key}")
-    phase_text = f"{hitalic(task_data.get('phase'))}\n\n" if task_data.get('phase') else ""
-    level_names = {"light": "◽️ Light", "medium": "🔶 Medium", "hard": "🔥 Hard"}
-    
-    builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Подтвердить", callback_data=f"task_confirm:{level_key}")
-    builder.button(text="🔄 Выбрать Другое", callback_data="change_task_level")
-    builder.adjust(1)
-    
-    await callback.message.edit_text(
-        f"🎯 {hbold('Выбранный уровень:')} {level_names[level_key]}\n\n"
-        f"{phase_text}"
-        f"{hbold('Задание:')}\n{task_text}\n\n"
-        f"Подтверждаешь свой выбор на сегодня?",
-        reply_markup=builder.as_markup()
-    )
-    await callback.answer()
+
 
 @client_router.callback_query(F.data.startswith("task_confirm:"))
 async def task_level_confirm_handler(callback: types.CallbackQuery, bot: Bot):

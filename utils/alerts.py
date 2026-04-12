@@ -10,14 +10,14 @@ async def send_red_alert(bot: Bot, user_full_name: str, user_tg_id: int, marker:
     text = (
         f"рџљЁ {hbold('RED ALERT: РћР‘РќРђР РЈР–Р•Рќ РЎРђР‘РћРўРђР–')} рџљЁ\n\n"
         f"рџ‘¤ {hbold('РљР»РёРµРЅС‚:')} {user_full_name} ({user_tg_id})\n"
-        f"вљ пёЏ {hbold('РњР°СЂРєРµСЂ:')} {marker.upper()}\n"
+        f"⚠️ {hbold('РњР°СЂРєРµСЂ:')} {marker.upper()}\n"
         f"рџ“ќ {hbold('РџСЂРёС‡РёРЅР°:')} {reason}\n\n"
-        f"рџ’¬ {hbold('РўРµРєСЃС‚ РѕС‚С‡РµС‚Р°:')}\n{hitalic(content)}"
+        f"💬 {hbold('РўРµРєСЃС‚ РѕС‚С‡РµС‚Р°:')}\n{hitalic(content)}"
     )
     
     # Inline button to reply to client
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(text="рџ’¬ РћС‚РІРµС‚РёС‚СЊ РєР»РёРµРЅС‚Сѓ", callback_data=f"ai_reply_{user_tg_id}")]
+        [types.InlineKeyboardButton(text="💬 РћС‚РІРµС‚РёС‚СЊ РєР»РёРµРЅС‚Сѓ", callback_data=f"ai_reply_{user_tg_id}")]
     ])
     
     for admin_id in ADMIN_IDS:
@@ -27,10 +27,10 @@ async def send_red_alert(bot: Bot, user_full_name: str, user_tg_id: int, marker:
             logging.error(f"Failed to send Red Alert to {admin_id}: {e}")
 
 async def send_audit_report(bot: Bot, user: dict, audit_data: dict, day: int):
-    \"\"\"
+    """
     Sends a currency audit report to all admins.
     Day 22 logic included for delta calculation.
-    \"\"\"
+    """
     from database.firebase_db import FirestoreDB
     
     # Delta calculation for Day 22

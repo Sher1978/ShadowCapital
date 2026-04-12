@@ -196,28 +196,36 @@ async def trigger_manual_callback(callback: types.CallbackQuery):
     action = callback.data.replace("trigger_", "")
     logger.info(f"⚡ [ADMIN] Manually triggering action: {action}")
     
+    # ПРЕДВЕЩАТЕЛЬНЫЙ ОТВЕТ НА КОЛБЕК, ЧТОБЫ НЕ БЫЛО ТАЙМАУТА (Query is too old)
+    try:
+        await callback.answer("Запускаю процесс, это может занять время...")
+    except Exception:
+        pass
+    
     from utils.scheduler import send_morning_impulse, request_evening_logs, send_group_weekly_report
     
     try:
+        # Immediate answer to acknowledge the click
+        await callback.answer("⏳ Запуск процесса...", show_alert=False)
+        
+        # Update message to show progress
+        original_text = callback.message.text
+        await callback.message.edit_text(f"{original_text}\n\n⌛ {hbold('Процесс запущен...')}")
+
         if action == "morning":
-            await callback.message.answer("🚀 Запускаю рассылку утренних импульсов...")
             count = await send_morning_impulse(callback.bot)
-            await callback.message.answer(f"✅ Рассылка импульсов завершена. Отправлено: {count} чел.")
+            await callback.message.edit_text(f"{original_text}\n\n✅ {hbold('Рассылка завершена!')}\nОтправлено: {count} чел.")
         elif action == "evening":
-            await callback.message.answer("📝 Запускаю сбор вечерних отчетов...")
             count = await request_evening_logs(callback.bot)
-            await callback.message.answer(f"✅ Сбор отчетов запущен. Отправлено запросов: {count} чел.")
+            await callback.message.edit_text(f"{original_text}\n\n✅ {hbold('Сбор отчетов запущен!')}\nОтправлено запросов: {count} чел.")
         elif action == "weekly":
-            await callback.message.answer("📊 Запускаю рассылку итогов недели...")
             await send_group_weekly_report(callback.bot)
-            await callback.message.answer("✅ Еженедельный отчет отправлен всем админам.")
+            await callback.message.edit_text(f"{original_text}\n\n✅ {hbold('Еженедельный отчет отправлен!')}")
         elif action == "sync_db":
-            await callback.message.answer("🔄 Синхронизирую базу с Google Таблицами...")
             from utils.gsheets_api import sync_gsheets_to_firestore
             count = await sync_gsheets_to_firestore()
-            await callback.message.answer(f"✅ База синхронизирована! Обновлено {count} заданий.")
+            await callback.message.edit_text(f"{original_text}\n\n✅ {hbold('База синхронизирована!')}\nОбновлено {count} заданий.")
         
-        await callback.answer("Запущено!")
         logger.info(f"✅ [ADMIN] Action {action} completed successfully.")
     except Exception as e:
         logger.error(f"❌ [ADMIN] Error triggering {action}: {e}", exc_info=True)
