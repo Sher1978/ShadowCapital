@@ -22,6 +22,7 @@ def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
         return builder.as_markup(resize_keyboard=True)
 
     builder.button(text="🎯 Моя цель")
+    builder.button(text="🎯 Задание")
     builder.button(text="📝 Вечерний Отчет")
     builder.button(text="📈 Мои результаты")
     builder.button(text="❓ Вопрос куратору")
