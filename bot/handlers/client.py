@@ -886,50 +886,37 @@ async def task_level_selection_handler(callback: types.CallbackQuery, state: FSM
     if not user: return
     
     level_str = callback.data.split(":")[1]
-    # Map level string to numeric value (used in SFI calculation later)
     level_map = {"light": 1, "medium": 2, "hard": 3}
     level_val = level_map.get(level_str, 2)
     
-    # Save the selected level for the day
-    await FirestoreDB.update_user(user['id'], {"current_day_level": level_val})
+    await FirestoreDB.update_user(user["id"], {"current_day_level": level_val})
     
-    # Fetch task content based on level
     from utils.gsheets_api import get_task_2_0
     from utils.timezone_utils import get_user_current_day
     
-    start_date = user.get('sprint_start_date') or user.get('created_at')
-    day = get_user_current_day(start_date, user.get('timezone', 'UTC+7'))
-    task_data = await get_task_2_0(day, user.get('scenario_type', 'Sovereign'))
+    start_date = user.get("sprint_start_date") or user.get("created_at")
+    day = get_user_current_day(start_date, user.get("timezone", "UTC+7"))
+    task_data = await get_task_2_0(day, user.get("scenario_type", "Sovereign"))
     
     if not task_data:
         await callback.answer("Ошибка: данные задачи не найдены.")
         return
         
-    # Get the specific level text from Task Engine 2.0
-    task_text = task_data.get(f'task_{level_str}') or task_data.get('task_medium') or "Задача на сегодня загружается..."
-    # Map Context to Theory and Tool to Guard/Trap as per sheet structure
-    context_text = task_data.get('theory') or ""
-    tool_text = task_data.get('guard_trap') or ""
+    task_text = task_data.get(f"task_{level_str}") or task_data.get("task_medium") or "Задача на сегодня загружается..."
+    context_text = task_data.get("theory") or ""
+    tool_text = task_data.get("guard_trap") or ""
     
+    # Construct the full task message with clean newlines
     full_task_msg = (
-        f"🎯 {hbold('ТВОЕ ЗАДАНИЕ (' + level_str.upper() + ')')}
-
-"
-        f"{task_text}
-
-"
-        f"🔍 {hbold('КОНТЕКСТ')}
-{context_text}
-
-"
-        f"🛠 {hbold('ИНСТРУМЕНТ')}
-{tool_text}
-
-"
+        f"🎯 {hbold('ТВОЕ ЗАДАНИЕ (' + level_str.upper() + ')')}\n\n"
+        f"{task_text}\n\n"
+        f"🔍 {hbold('КОНТЕКСТ')}\n"
+        f"{context_text}\n\n"
+        f"🛠 {hbold('ИНСТРУМЕНТ')}\n"
+        f"{tool_text}\n\n"
         f"🏁 {hbold('Когда закончишь, пришли отчет текстом или голосом.')}"
     )
     
-    # Corrected Navigation: Use Inline Buttons for Task acceptance
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ Принять и начать", callback_data=f"confirm_task:{level_str}")
     builder.button(text="⬅️ Изменить уровень", callback_data="change_task_level")
@@ -945,10 +932,8 @@ async def task_level_selection_handler(callback: types.CallbackQuery, state: FSM
 async def edit_log_handler(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text("Хорошо, давай попробуем еще раз. 🎙\nПришли исправленное сообщение или запиши новое аудио.")
-    # State remains or we can reset to waiting_for_log
     from bot.states import ClientStates
     await state.set_state(ClientStates.waiting_for_log)
-
 
 @client_router.callback_query(F.data.startswith("confirm_task:"))
 async def confirm_task_handler(callback: types.CallbackQuery, bot: Bot):
@@ -956,23 +941,28 @@ async def confirm_task_handler(callback: types.CallbackQuery, bot: Bot):
     level_names = {"light": "Light", "medium": "Medium", "hard": "Hard"}
     user = await FirestoreDB.get_user(callback.from_user.id)
     if not user: return
+    
     from datetime import datetime, timezone
     confirm_time = datetime.now(timezone.utc).strftime("%H:%M")
+    
     admin_msg = (
         f"✅ {hbold('Задача принята!')}\n\n"
         f"👤 {hbold('Клиент:')} {user.get('full_name')}\n"
         f"🎯 {hbold('Уровень:')} {level_names.get(level_str, level_str)}\n"
         f"⏰ {hbold('Время:')} {confirm_time} UTC"
     )
+    
     for admin_id in ADMIN_IDS:
         try: await bot.send_message(admin_id, admin_msg)
         except: pass
+        
     await callback.message.edit_text(
         f"✅ {hbold('Твой выбор принят!')}\n"
         f"Уровень: {hbold(level_names.get(level_str, level_str.capitalize()))}\n\n"
         f"Действуй! Жду твой отчет вечером.",
         reply_markup=None
     )
+    
     is_admin_user = callback.from_user.id in ADMIN_IDS
     await callback.message.answer(
         "Используй меню ниже для навигации.", 
