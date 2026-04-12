@@ -874,18 +874,34 @@ async def task_level_selection_handler(callback: types.CallbackQuery, state: FSM
         
     # Get the specific level text from Task Engine 2.0
     task_text = task_data.get(f'task_{level_str}') or task_data.get('task_medium') or "Задача на сегодня загружается..."
-    context_text = task_data.get(f'context_{level_str}') or task_data.get('context_medium', '')
-    tool_text = task_data.get(f'tool_{level_str}') or task_data.get('tool_medium', '')
+    # Map Context to Theory and Tool to Guard/Trap as per sheet structure
+    context_text = task_data.get('theory') or ""
+    tool_text = task_data.get('guard_trap') or ""
     
     full_task_msg = (
-        f"🎯 {hbold('ТВОЕ ЗАДАНИЕ (' + level_str.upper() + ')')}\n\n"
-        f"{task_text}\n\n"
-        f"🔍 {hbold('КОНТЕКСТ')}\n{context_text}\n\n"
-        f"🛠 {hbold('ИНСТРУМЕНТ')}\n{tool_text}\n\n"
+        f"🎯 {hbold('ТВОЕ ЗАДАНИЕ (' + level_str.upper() + ')')}
+
+"
+        f"{task_text}
+
+"
+        f"🔍 {hbold('КОНТЕКСТ')}
+{context_text}
+
+"
+        f"🛠 {hbold('ИНСТРУМЕНТ')}
+{tool_text}
+
+"
         f"🏁 {hbold('Когда закончишь, пришли отчет текстом или голосом.')}"
     )
     
-    await callback.message.edit_text(full_task_msg)
+    # Restore main menu buttons
+    is_admin = callback.from_user.id in ADMIN_IDS
+    await callback.message.edit_text(
+        full_task_msg, 
+        reply_markup=get_main_keyboard(is_admin=is_admin, is_active=True)
+    )
     await callback.answer()
 
 @client_router.callback_query(F.data == "edit_log")

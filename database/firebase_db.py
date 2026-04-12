@@ -148,12 +148,13 @@ class FirestoreDB:
         return users
 
     @staticmethod
-    async def get_archived_users() -> List[Dict[str, Any]]:
-        """Get all archived users (Sync wrapper)."""
-        query = db.collection("users").where("status", "==", "archived")
-        docs = query.stream()
+    async def get_archived_users(limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
+        """Get archived users with pagination (Sync wrapper)."""
+        query = db.collection("users").where("status", "==", "archived").limit(limit + offset)
+        docs = list(query.stream())
         users = []
-        for doc in docs:
+        subset = docs[offset:] if len(docs) > offset else []
+        for doc in subset:
             d = doc.to_dict()
             d['id'] = doc.id
             users.append(d)

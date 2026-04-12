@@ -320,7 +320,7 @@ async def process_pending_pagination(callback: types.CallbackQuery):
     await show_pending_page(callback, page)
     await callback.answer()
 
-@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты") | (F.text == "📁 Архив"), F.from_user.id.func(is_admin), StateFilter("*"))
+@admin_router.message(F.text.contains("Клиенты") | F.text.contains("Спринты") | F.text.contains("Архив"), F.from_user.id.func(is_admin), StateFilter("*"))
 async def admin_clients_handler(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     logger.info(f"🔍 [ADMIN] Clients/Archive handler triggered by {user_id}")
@@ -328,7 +328,7 @@ async def admin_clients_handler(message: types.Message, state: FSMContext):
     # Safety clear
     await state.clear()
     
-    if message.text == "📁 Архив":
+    if "Архив" in message.text:
         await show_archived_page(message)
     else:
         await show_active_page(message)
