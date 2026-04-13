@@ -8,16 +8,16 @@ async def send_red_alert(bot: Bot, user_full_name: str, user_tg_id: int, marker:
     Sends a Red Alert to all admins when sabotage is detected.
     """
     text = (
-        f"рџљЁ {hbold('RED ALERT: РћР‘РќРђР РЈР–Р•Рќ РЎРђР‘РћРўРђР–')} рџљЁ\n\n"
-        f"рџ‘¤ {hbold('РљР»РёРµРЅС‚:')} {user_full_name} ({user_tg_id})\n"
-        f"⚠️ {hbold('РњР°СЂРєРµСЂ:')} {marker.upper()}\n"
-        f"рџ“ќ {hbold('РџСЂРёС‡РёРЅР°:')} {reason}\n\n"
-        f"💬 {hbold('РўРµРєСЃС‚ РѕС‚С‡РµС‚Р°:')}\n{hitalic(content)}"
+        f"🚨 {hbold('RED ALERT: ОБНАРУЖЕН САБОТАЖ')} 🚨\n\n"
+        f"👤 {hbold('Клиент:')} {user_full_name} ({user_tg_id})\n"
+        f"⚠️ {hbold('Маркер:')} {marker.upper()}\n"
+        f"📝 {hbold('Причина:')} {reason}\n\n"
+        f"💬 {hbold('Текст отчета:')}\n{hitalic(content)}"
     )
     
     # Inline button to reply to client
     keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(text="💬 РћС‚РІРµС‚РёС‚СЊ РєР»РёРµРЅС‚Сѓ", callback_data=f"ai_reply_{user_tg_id}")]
+        [types.InlineKeyboardButton(text="💬 Ответить клиенту", callback_data=f"ai_reply_{user_tg_id}")]
     ])
     
     for admin_id in ADMIN_IDS:

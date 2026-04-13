@@ -26,12 +26,12 @@ async def send_admin_morning_pulse(bot: Bot):
     text = (
         f"🌑 {hbold('Advisor, время сканирования.')}\n\n"
         f"Система обновила показатели SFI. В «красной зоне» сейчас {hbold(len(red_zone))} чел.\n"
-        f"РџСЂРѕРІРµСЂСЊ РґРµС‚Р°Р»Рё РІ СЂР°Р·РґРµР»Рµ `🚀 РЎРїСЂРёРЅС‚С‹`."
+        f"Проверь детали в разделе `🚀 Спринты`."
     )
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
-    builder.button(text="🚀 РЎРїСЂРёРЅС‚С‹", callback_data="active_page_0")
+    builder.button(text="🚀 Спринты", callback_data="active_page_0")
     
     for admin_id in ADMIN_IDS:
         try: await bot.send_message(admin_id, text, reply_markup=builder.as_markup())
@@ -47,16 +47,16 @@ async def send_admin_deadline_control(bot: Bot):
         logs = await FirestoreDB.get_logs(u['id'], limit=1)
         last_log = logs[0] if logs else None
         if not last_log or last_log.get('created_at').date() < today:
-            missed.append(f"вЂў {u.get('full_name')} (@{u.get('username') or u.get('tg_id')})")
+            missed.append(f"• {u.get('full_name')} (@{u.get('username') or u.get('tg_id')})")
     
     if not missed:
-        text = f"🚩 {hbold('РљРѕРЅС‚СЂРѕР»СЊ РґРµРґР»Р°Р№РЅР°:')} Р’СЃРµ РѕС‚С‡РµС‚С‹ СЃРґР°РЅС‹ РІРѕРІСЂРµРјСЏ. РЎР°Р±РѕС‚Р°Р¶Р° РЅРµ РѕР±РЅР°СЂСѓР¶РµРЅРѕ."
+        text = f"🚩 {hbold('Контроль дедлайна:')} Все отчеты сданы вовремя. Саботажа не обнаружено."
     else:
         text = (
-            f"🚩 {hbold('Р’РЅРёРјР°РЅРёРµ: РЎР±РѕСЂ Р»РѕРіРѕРІ Р·Р°РІРµСЂС€РµРЅ.')}\n\n"
-            f"Р­С‚Рё РїРѕР»СЊР·РѕРІР°С‚РµР»Рё РќР• СЃРґР°Р»Рё РѕС‚С‡РµС‚ РІРѕРІСЂРµРјСЏ:\n"
+            f"🚩 {hbold('Внимание: Сбор логов завершен.')}\n\n"
+            f"Эти пользователи НЕ сдали отчет вовремя:\n"
             + "\n".join(missed) + "\n\n"
-            f"РЎРёСЃС‚РµРјР° РіРѕС‚РѕРІР° Рє Р°СѓРґРёС‚Сѓ РёРЅСЃР°Р№С‚РѕРІ."
+            f"Система готова к аудиту инсайтов."
         )
         
     for admin_id in ADMIN_IDS:
@@ -83,12 +83,12 @@ async def send_admin_evening_concentrate(bot: Bot):
             
     if not users: return
 
-    insights = [f"вЂў {hbold(u.get('full_name'))}: {u.get('last_insight')}" for u in users]
+    insights = [f"• {hbold(u.get('full_name'))}: {u.get('last_insight')}" for u in users]
     
     text = (
-        f"🧠 {hbold('РЎРІРѕРґРєР° РёРЅСЃР°Р№С‚РѕРІ РіРѕС‚РѕРІР°.')}\n\n"
+        f"🧠 {hbold('Сводка инсайтов готова.')}\n\n"
         + "\n".join(insights) + "\n\n"
-        f"Р•СЃС‚СЊ Р»Рё РјРѕРјРµРЅС‚С‹ РґР»СЏ С‚РІРѕРµРіРѕ Р»РёС‡РЅРѕРіРѕ РІРјРµС€Р°С‚РµР»СЊСЃС‚РІР°?"
+        f"Есть ли моменты для твоего личного вмешательства?"
     )
     
     for admin_id in ADMIN_IDS:
@@ -149,7 +149,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None, bypass_audit: bool =
                 if not task_data:
                     # Fallback to old method or default
                     task_body = await get_daily_task_from_sheets(day, u.get('scenario_type') or "Sovereign")
-                    theory = "РџСЂРѕРґРѕР»Р¶Р°РµРј РїРѕРіСЂСѓР¶РµРЅРёРµ РІ С‚РІРѕРµ С‚РµРЅРµРІРѕРµ РєР°С‡РµСЃС‚РІРѕ."
+                    theory = "Продолжаем погружение в твое теневое качество."
                     day_name = f"День {day}"
                 else:
                     theory = task_data['theory']
@@ -170,10 +170,10 @@ async def send_morning_impulse(bot: Bot, user: dict = None, bypass_audit: bool =
 
             greetings = [
                 f"🌅 Доброе утро{name_suffix}!",
-                f"вЂпёЏ РЎ РЅРѕРІС‹Рј РґРЅРµРј{name_suffix}!",
+                f"вЂпёЏ С новым днем{name_suffix}!",
                 f"✨ Привет{name_suffix}!",
                 f"🔥 Прекрасное утро{name_suffix}!",
-                f"рџЊџ Доброе утро{name_suffix}!"
+                f"🌟 Доброе утро{name_suffix}!"
             ]
             
             if task_body:
@@ -235,7 +235,7 @@ async def send_morning_impulse(bot: Bot, user: dict = None, bypass_audit: bool =
 async def request_evening_logs(bot: Bot, user: dict = None, bypass_audit: bool = False) -> int:
     """Sends evening log request to a specific user or all active users. Returns count sent."""
     now = datetime.now(timezone.utc)
-    logger.info(f"рџЊ™ [SCHEDULER] Starting request_evening_logs. Manual: {user is not None}")
+    logger.info(f"🌙 [SCHEDULER] Starting request_evening_logs. Manual: {user is not None}")
     
     if user:
         users = [user]
@@ -288,21 +288,21 @@ async def request_evening_logs(bot: Bot, user: dict = None, bypass_audit: bool =
                 
             if not questions_text:
                 questions_text = (
-                    "рџ’Ў Р’СЃРїРѕРјРЅРё СЃРµРіРѕРґРЅСЏС€РЅРёР№ РґРµРЅСЊ:\n\n"
+                    "💡 Вспомни сегодняшний день:\n\n"
                     "вќ“ РљРђРљ РЎР•Р“РћР”РќРЇ РџР РћРЇР’РР›РћРЎР¬ ТВОЕ ТЕНЕВОЕ КАЧЕСТВО?\n\n"
                     "вќ“ РљРђРљРћР• РЎРћРџР РћРўРР’Р›Р•РќРР• ТЫ ПОЧУВСТВОВАЛА(А)?\n\n"
-                    "рџЋ¤ Пришли текст или запиши голосовое сообщение."
+                    "🎙️ Пришли текст или запиши голосовое сообщение."
                 )
             
             text = (
                 f"🌙 {hbold('Пришло время для Вечернего Отчета.')} (День {day})\n\n"
                 f"{questions_text}\n\n"
-                f"рџЋ¤ Пришли текст или запиши голосовое сообщение."
+                f"🎙️ Пришли текст или запиши голосовое сообщение."
             )
             from aiogram.utils.keyboard import InlineKeyboardBuilder
             builder = InlineKeyboardBuilder()
             builder.button(text="📝 Заполнить отчет", callback_data="start_evening_log")
-            builder.button(text="вљ™пёЏ РР·РјРµРЅРёС‚СЊ РІСЂРµРјСЏ РґРѕСЃС‚Р°РІРєРё", callback_data="edit_delivery_times")
+            builder.button(text="⚙️ РР·РјРµРЅРёС‚СЊ РІСЂРµРјСЏ РґРѕСЃС‚Р°РІРєРё", callback_data="edit_delivery_times")
             builder.adjust(1)
             
             await bot.send_message(u_id, text, reply_markup=builder.as_markup())
@@ -378,7 +378,7 @@ async def dynamic_scheduler_job(bot: Bot):
 
         # Check Quiet Hours - safety net
         if is_quiet_hours(user_local_time):
-            # logger.debug(f"рџ¤« [SCHEDULER] Quiet hours for user {user.get('tg_id')}. Skipping pulses.")
+            # logger.debug(f"🤫 [SCHEDULER] Quiet hours for user {user.get('tg_id')}. Skipping pulses.")
             continue
 
         today = user_local_time.date()
@@ -413,7 +413,7 @@ async def reload_admin_jobs(bot: Bot):
         try: _scheduler.remove_job(job_id)
         except: pass
         
-    logging.info("вЏі Fetching global settings from Firestore...")
+    logging.info("⏳ Fetching global settings from Firestore...")
     settings = await FirestoreDB.get_global_settings()
     logging.info(f"✅ Global settings fetched: {settings.keys()}")
     
