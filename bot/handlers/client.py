@@ -945,11 +945,29 @@ async def confirm_task_handler(callback: types.CallbackQuery, bot: Bot):
     from datetime import datetime, timezone
     confirm_time = datetime.now(timezone.utc).strftime("%H:%M")
     
+    # Extract task text for admin notification and client preservation
+    original_html = callback.message.html_text
+    
+    # We strip the footer (trailing part with the help reminder) to keep it as an instruction
+    instructions = original_html
+    if "🏁" in instructions:
+        instructions = instructions.split("🏁")[0].strip()
+    
+    # Simple task extraction for admin (plain text preferred)
+    task_text_plain = "N/A"
+    if "🎯" in (callback.message.text or ""):
+        try:
+            # Attempt to extract just the body
+            task_text_plain = callback.message.text.split("\n\n", 1)[1].split("🔍")[0].strip()
+        except:
+            task_text_plain = "Задача выбрана"
+
     admin_msg = (
         f"✅ {hbold('Задача принята!')}\n\n"
         f"👤 {hbold('Клиент:')} {user.get('full_name')}\n"
         f"🎯 {hbold('Уровень:')} {level_names.get(level_str, level_str)}\n"
-        f"⏰ {hbold('Время:')} {confirm_time} UTC"
+        f"⏰ {hbold('Время:')} {confirm_time} UTC\n\n"
+        f"📝 {hbold('Задание:')}\n{hitalic(task_text_plain)}"
     )
     
     for admin_id in ADMIN_IDS:
@@ -959,7 +977,8 @@ async def confirm_task_handler(callback: types.CallbackQuery, bot: Bot):
     await callback.message.edit_text(
         f"✅ {hbold('Твой выбор принят!')}\n"
         f"Уровень: {hbold(level_names.get(level_str, level_str.capitalize()))}\n\n"
-        f"Действуй! Жду твой отчет вечером.",
+        f"{instructions}\n\n"
+        f"🚀 {hbold('Действуй! Жду твой отчет вечером.')}",
         reply_markup=None
     )
     
