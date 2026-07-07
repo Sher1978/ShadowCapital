@@ -806,19 +806,6 @@ async def process_manual_id(message: types.Message, state: FSMContext):
         f"Введите Имя для Спринта (или выберите предложенное):",
         reply_markup=builder.as_markup(resize_keyboard=True)
     )
-    
-    from aiogram.utils.keyboard import ReplyKeyboardBuilder
-    from aiogram.types import KeyboardButton
-    builder = ReplyKeyboardBuilder()
-    builder.button(text=user.get('full_name') or "Без имени")
-    builder.row(KeyboardButton(text="⬅️ Назад"), KeyboardButton(text="🏠 В меню"))
-    builder.adjust(1, 2)
-    
-    await message.answer(
-        f"✅ Пользователь найден: {user.get('full_name')} (ID: {user.get('tg_id')})\n"
-        f"Введите Имя для Спринта (или выберите предложенное):",
-        reply_markup=builder.as_markup(resize_keyboard=True)
-    )
 
 @admin_router.message(AdminRegistration.waiting_for_full_name)
 async def process_full_name(message: types.Message, state: FSMContext):
@@ -835,8 +822,11 @@ async def process_quality_name(message: types.Message, state: FSMContext):
         f"1. {hbold('Sovereign')}\n"
         f"2. {hbold('Expansion')}\n"
         f"3. {hbold('Vitality')}\n"
-        f"4. {hbold('Architect')}\n\n"
-        f"Введите цифру (1-4):"
+        f"4. {hbold('Architect')}\n"
+        f"5. {hbold('Тревожный')} (60 дней)\n"
+        f"6. {hbold('Избегающий')} (60 дней)\n"
+        f"7. {hbold('Тревожно-избегающий')} (60 дней)\n\n"
+        f"Введите цифру (1-7):"
     )
     await message.answer(text, reply_markup=get_navigation_keyboard())
 
@@ -846,7 +836,10 @@ async def process_scenario_type(message: types.Message, state: FSMContext, bot: 
         "1": "Sovereign",
         "2": "Expansion",
         "3": "Vitality",
-        "4": "Architect"
+        "4": "Architect",
+        "5": "Тревожный",
+        "6": "Избегающий",
+        "7": "Тревожно-избегающий"
     }
     
     choice = message.text.strip()
@@ -862,7 +855,10 @@ async def process_scenario_type(message: types.Message, state: FSMContext, bot: 
         "Sovereign": "Твой путь к безусловной личной власти и ответственности. Возвращаем контроль и уверенно входим на 'трон' своего дела! 👑",
         "Expansion": "Расширяем горизонты и убираем любые преграды для роста. Твоя 'Большая Игра' начинается здесь и сейчас! 🚀",
         "Vitality": "Освобождаем скрытую энергию и превращаем ее в чистое топливо для твоих побед. Драйв, легкость и тотальный фокус! 🔥",
-        "Architect": "Создаем идеальную систему, где каждый элемент работает на результат. Твой бизнес — это шедевр архитектуры без трения! 🏛️"
+        "Architect": "Создаем идеальную систему, где каждый элемент работает на результат. Твой бизнес — это шедевр архитектуры без трения! 🏛️",
+        "Тревожный": "Исцеление отношений, выход из зависимости от одобрения, обретение внутренней опоры и спокойствия. 🛡️",
+        "Избегающий": "Преодоление страха близости, интеграция уязвимости и открытие способности к доверительному контакту. 🔓",
+        "Тревожно-избегающий": "Работа с глубокими циклами отторжения и притяжения, выстраивание надежного стиля привязанности. 🧩"
     }
     
     desc = descriptions.get(scenario_type, "Описание отсутствует.")
@@ -935,12 +931,15 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
     
     user = await FirestoreDB.get_user(data['tg_id'])
     
+    is_attachment = scenario_type in ["Тревожный", "Избегающий", "Тревожно-избегающий"]
+    quality_name_val = "Тип привязанности" if is_attachment else data['quality_name']
+    
     user_payload = {
         "tg_id": data['tg_id'],
         "full_name": data['full_name'],
         "role": "client",
         "scenario_type": scenario_type,
-        "target_quality_l1": data['quality_name'],
+        "target_quality_l1": quality_name_val,
         "status": "active",
         "sfi_index": 0.5, # Start with neutral friction (Yellow)
         "timezone": data.get('timezone', 'UTC+3'),
@@ -956,7 +955,7 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
     await sync_user_to_sheets({
         "user_id": data['tg_id'],
         "name": data['full_name'],
-        "target_quality": data['quality_name'],
+        "target_quality": quality_name_val,
         "scenario": scenario_type,
         "focus_currency": "N/A",
         "red_flags": 0
@@ -970,13 +969,22 @@ async def process_activation_confirmation(message: types.Message, state: FSMCont
     
     # Notify client
     try:
-        welcome_text = (
-            f"🚀 {hbold('Поздравляю! Спринт активирован, и мы начинаем этот путь!')}\n\n"
-            f"🌅 Твое движение стартует уже завтра утром. В течение дня ты будешь получать задания — просто выполняй их и фиксируй прогресс. "
-            f"А каждым вечером мы будем подводить итоги: я задам пару вопросов, чтобы закрепить результат.\n\n"
-            f"Мы сфокусируемся на качестве {hbold(data['quality_name'])}. Это будет увлекательное путешествие к цели! "
-            f"Я рядом и верю в твой успех. Только вперед! 🔥✨"
-        )
+        if is_attachment:
+            welcome_text = (
+                f"🚀 {hbold('Поздравляю! Спринт активирован, и мы начинаем этот путь!')}\n\n"
+                f"🌅 Твое движение стартует уже завтра утром. В течение дня ты будешь получать задания — просто выполняй их и фиксируй прогресс. "
+                f"А каждым вечером мы будем подводить итоги: я задам пару вопросов, чтобы закрепить результат.\n\n"
+                f"Мы сфокусируемся на теме {hbold(scenario_type + ' тип привязанности')}. Это будет глубокое 60-дневное путешествие к стабильности и надежной связи! "
+                f"Я рядом и верю в твой успех. Только вперед! 🔥✨"
+            )
+        else:
+            welcome_text = (
+                f"🚀 {hbold('Поздравляю! Спринт активирован, и мы начинаем этот путь!')}\n\n"
+                f"🌅 Твое движение стартует уже завтра утром. В течение дня ты будешь получать задания — просто выполняй их и фиксируй прогресс. "
+                f"А каждым вечером мы будем подводить итоги: я задам пару вопросов, чтобы закрепить результат.\n\n"
+                f"Мы сфокусируемся на качестве {hbold(data['quality_name'])}. Это будет увлекательное путешествие к цели! "
+                f"Я рядом и верю в твой успех. Только вперед! 🔥✨"
+            )
         await bot.send_message(data['tg_id'], welcome_text, reply_markup=get_main_keyboard())
     except Exception as e:
         await message.answer(f"Не удалось отправить уведомление клиенту напрямую: {e}")
@@ -1026,9 +1034,6 @@ async def process_edit_timezone(callback: types.CallbackQuery, state: FSMContext
     if user:
         await FirestoreDB.update_user(user['id'], {"timezone": new_tz})
         await callback.message.answer(f"✅ Часовой пояс обновлен на: {hbold(new_tz)}")
-        # Show stats again
-        # We need to manually call it or better yet, just tell them it's done.
-        # Re-triggering view_user_stats_handler might be tricky with the callback data.
     else:
         await callback.answer("Ошибка: клиент не найден.")
     
@@ -1080,7 +1085,10 @@ async def edit_scenario_start(callback: types.CallbackQuery, state: FSMContext):
         f"2. {hbold('Expansion')}\n"
         f"3. {hbold('Vitality')}\n"
         f"4. {hbold('Architect')}\n\n"
-        f"Введите цифру (1-4):"
+        f"5. {hbold('Тревожный')} (60 дней)\n"
+        f"6. {hbold('Избегающий')} (60 дней)\n"
+        f"7. {hbold('Тревожно-избегающий')} (60 дней)\n\n"
+        f"Введите цифру (1-7):"
     )
     await callback.message.answer(text, reply_markup=get_navigation_keyboard())
     await callback.answer()
@@ -1096,7 +1104,10 @@ async def process_edit_scenario(message: types.Message, state: FSMContext):
         "1": "Sovereign",
         "2": "Expansion",
         "3": "Vitality",
-        "4": "Architect"
+        "4": "Architect",
+        "5": "Тревожный",
+        "6": "Избегающий",
+        "7": "Тревожно-избегающий"
     }
     
     choice = message.text.strip()
@@ -1111,7 +1122,10 @@ async def process_edit_scenario(message: types.Message, state: FSMContext):
         "Sovereign": "Возврат личной власти, радикальная ответственность и «вступление на трон» бизнеса.",
         "Expansion": "Снятие внутренних границ, мешающих росту. Работа с «Большой Игрой» и захват новых территорий.",
         "Vitality": "Интеграция Тени для прекращения «слива» энергии в маски. Фокус на эффективности и драйве.",
-        "Architect": "Структурирование хаоса Тени в твердую бизнес-архитектуру. Система на Active Braking Release."
+        "Architect": "Структурирование хаоса Тени в твердую бизнес-архитектуру. Система на Active Braking Release.",
+        "Тревожный": "Исцеление отношений, выход из зависимости от одобрения, обретение внутренней опоры и спокойствия. 🛡️",
+        "Избегающий": "Преодоление страха близости, интеграция уязвимости и открытие способности к доверительному контакту. 🔓",
+        "Тревожно-избегающий": "Работа с глубокими циклами отторжения и притяжения, выстраивание надежного стиля привязанности. 🧩"
     }
     
     desc = descriptions.get(scenario_type, "Описание отсутствует.")
@@ -1147,13 +1161,19 @@ async def process_edit_scenario_confirmation(message: types.Message, state: FSMC
     
     user = await FirestoreDB.get_user(client_id)
     if user:
-        await FirestoreDB.update_user(user['id'], {"scenario_type": new_scenario})
+        update_payload = {"scenario_type": new_scenario}
+        target_quality = user.get('target_quality_l1')
+        if new_scenario in ["\u0422\u0440\u0435\u0432\u043e\u0436\u043d\u044b\u0439", "\u0418\u0437\u0431\u0435\u0433\u0430\u044e\u0449\u0438\u0439", "\u0422\u0440\u0435\u0432\u043e\u0436\u043d\u043e-\u0438\u0437\u0431\u0435\u0433\u0430\u044e\u0449\u0438\u0439"]:
+            update_payload["target_quality_l1"] = "\u0422\u0438\u043f \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d\u043d\u043e\u0441\u0442\u0438"
+            target_quality = "\u0422\u0438\u043f \u043f\u0440\u0438\u0432\u044f\u0437\u0430\u043d\u043d\u043e\u0441\u0442\u0438"
+            
+        await FirestoreDB.update_user(user['id'], update_payload)
         
         # Sync to Sheets
         await sync_user_to_sheets({
             "user_id": user.get('tg_id'),
             "name": user.get('full_name'),
-            "target_quality": user.get('target_quality_l1'),
+            "target_quality": target_quality,
             "scenario": new_scenario,
             "focus_currency": user.get('focus_currency', 'N/A'),
             "red_flags": user.get('red_flags_count') or 0,
@@ -1169,7 +1189,11 @@ async def process_edit_scenario_confirmation(message: types.Message, state: FSMC
 @admin_router.callback_query(F.data == "edit_field_day")
 async def edit_day_start(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.waiting_for_edit_day)
-    await callback.message.answer("Введите новый номер дня (1-30):", reply_markup=get_navigation_keyboard())
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    user = await FirestoreDB.get_user(client_id) if client_id else None
+    duration = 60 if user and user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
+    await callback.message.answer(f"Введите новый номер дня (1-{duration}):", reply_markup=get_navigation_keyboard())
     await callback.answer()
 
 @admin_router.message(AdminStates.waiting_for_edit_day)
@@ -1179,13 +1203,18 @@ async def process_edit_day(message: types.Message, state: FSMContext):
         await message.answer("Редактирование отменено.", reply_markup=get_main_keyboard(is_admin=True))
         return
         
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    user = await FirestoreDB.get_user(client_id) if client_id else None
+    duration = 60 if user and user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
+    
     if not message.text.isdigit():
-        await message.answer("Пожалуйста, введите число (1-30).")
+        await message.answer(f"Пожалуйста, введите число (1-{duration}).")
         return
         
     day = int(message.text)
-    if not (1 <= day <= 30):
-        await message.answer("Номер дня должен быть от 1 до 30.")
+    if not (1 <= day <= duration):
+        await message.answer(f"Номер дня должен быть от 1 до {duration}.")
         return
         
     await state.update_data(new_day=day)

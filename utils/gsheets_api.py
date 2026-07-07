@@ -175,51 +175,87 @@ async def sync_gsheets_to_firestore():
     
     logging.info("🔄 Starting GSheets to Firestore synchronization...")
     
-    # 1. Sync Tasks Matrix
-    all_values = await get_all_values(SHEET_NAME_TASK_ENGINE)
-    if not all_values:
-        raise RuntimeError("Could not fetch values from Task Engine sheet")
-        
-    COL_DAY = 0
-    COL_SCENARIO = 1
-    COL_DAY_NAME = 2
-    COL_PHASE = 3
-    COL_THEORY = 4
-    COL_LIGHT = 5
-    COL_MEDIUM = 6
-    COL_HARD = 7
-    COL_GUARD = 8
-    COL_EVENING = 9
-    
     tasks_to_cache = []
-    # Skip header
-    for row in all_values[1:]:
-        if not row or len(row) <= COL_DAY: continue
-        
-        day_str = str(row[COL_DAY]).strip()
-        if not day_str.isdigit(): continue
-        
-        scenario_raw = str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip()
-        scenario_val = "all" if not scenario_raw or "all" in scenario_raw else scenario_raw
-        
-        tasks_to_cache.append({
-            "day": int(day_str),
-            "scenario": scenario_val,
-            "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day_str}",
-            "phase": row[COL_PHASE] if len(row) > COL_PHASE else "",
-            "theory": row[COL_THEORY] if len(row) > COL_THEORY else "",
-            "task_light": row[COL_LIGHT] if len(row) > COL_LIGHT else "",
-            "task_medium": row[COL_MEDIUM] if len(row) > COL_MEDIUM else "",
-            "task_hard": row[COL_HARD] if len(row) > COL_HARD else "",
-            "guard_trap": row[COL_GUARD] if len(row) > COL_GUARD else "",
-            "evening_report": row[COL_EVENING] if len(row) > COL_EVENING else ""
-        })
     
-    if tasks_to_cache:
-        await FirestoreDB.save_tasks_matrix(tasks_to_cache)
-        logging.info(f"✅ Cached {len(tasks_to_cache)} tasks in Firestore.")
+    # 1. Fetch Task Engine 2.0 tasks
+    all_values = await get_all_values(SHEET_NAME_TASK_ENGINE)
+    if all_values:
+        COL_DAY = 0
+        COL_SCENARIO = 1
+        COL_DAY_NAME = 2
+        COL_PHASE = 3
+        COL_THEORY = 4
+        COL_LIGHT = 5
+        COL_MEDIUM = 6
+        COL_HARD = 7
+        COL_GUARD = 8
+        COL_EVENING = 9
         
-    # 2. Sync Instructions
+        # Skip header
+        for row in all_values[1:]:
+            if not row or len(row) <= COL_DAY: continue
+            
+            day_str = str(row[COL_DAY]).strip()
+            if not day_str.isdigit(): continue
+            
+            scenario_raw = str(row[COL_SCENARIO] if len(row) > COL_SCENARIO else "").lower().strip()
+            scenario_val = "all" if not scenario_raw or "all" in scenario_raw else scenario_raw
+            
+            tasks_to_cache.append({
+                "day": int(day_str),
+                "scenario": scenario_val,
+                "day_name": row[COL_DAY_NAME] if len(row) > COL_DAY_NAME else f"День {day_str}",
+                "phase": row[COL_PHASE] if len(row) > COL_PHASE else "",
+                "theory": row[COL_THEORY] if len(row) > COL_THEORY else "",
+                "task_light": row[COL_LIGHT] if len(row) > COL_LIGHT else "",
+                "task_medium": row[COL_MEDIUM] if len(row) > COL_MEDIUM else "",
+                "task_hard": row[COL_HARD] if len(row) > COL_HARD else "",
+                "guard_trap": row[COL_GUARD] if len(row) > COL_GUARD else "",
+                "evening_report": row[COL_EVENING] if len(row) > COL_EVENING else ""
+            })
+            
+    # 2. Fetch Attachment Types tasks
+    all_attachment_values = await get_all_values("Attachment_Types")
+    if all_attachment_values:
+        for row in all_attachment_values[1:]:
+            if not row or len(row) <= 1: continue
+            
+            category_raw = str(row[0]).lower().strip()
+            day_str = str(row[1]).strip()
+            if not day_str.isdigit(): continue
+            day = int(day_str)
+            
+            phase = "Фаза 1: Радар и Стоп-кран" if day <= 30 else "Фаза 2: Перепрошивка и Контакт"
+            
+            # Evening questions adapted to attachment terminology
+            evening_questions = (
+                "💡 Вспомни сегодняшний день:\n\n"
+                "❓ Как сегодня проявился твой тип привязанности в поведении или мыслях?\n\n"
+                "❓ Какое сопротивление/страх близости или поглощения ты заметил(а)?\n\n"
+                "❓ Удалось ли выполнить задание и как изменилось твое состояние?\n\n"
+                "🎙️ Пришли текст или запиши голосовое сообщение."
+            )
+            
+            tasks_to_cache.append({
+                "day": day,
+                "scenario": category_raw,
+                "day_name": f"День {day}",
+                "phase": phase,
+                "theory": row[2] if len(row) > 2 else "",
+                "task_light": row[3] if len(row) > 3 else "",
+                "task_medium": row[4] if len(row) > 4 else "",
+                "task_hard": row[5] if len(row) > 5 else "",
+                "guard_trap": "",
+                "evening_report": evening_questions
+            })
+            
+    if not tasks_to_cache:
+        raise RuntimeError("Could not fetch values from any sheet")
+        
+    await FirestoreDB.save_tasks_matrix(tasks_to_cache)
+    logging.info(f"✅ Cached {len(tasks_to_cache)} total tasks in Firestore.")
+        
+    # 3. Sync Instructions
     instruction_text = await fetch_instructions_from_sheets()
     if instruction_text:
         await FirestoreDB.save_global_content("instructions", instruction_text)
@@ -278,6 +314,38 @@ async def get_task_2_0(day: int, scenario: str) -> Optional[Dict[str, Any]]:
     # 2. Fallback to GSheets (slow)
     logging.info(f"Cache miss for Day {day}, Scenario {scenario}. Falling back dummy to GSheets...")
     
+    target_scenario = str(scenario).lower().strip()
+    if target_scenario in ["тревожный", "избегающий", "тревожно-избегающий"]:
+        records = await get_all_values("Attachment_Types")
+        if not records: return None
+        for row in records[1:]:
+            if not row or len(row) <= 1: continue
+            sheet_category = str(row[0]).lower().strip()
+            sheet_day = str(row[1]).strip()
+            if sheet_day == str(day) and sheet_category == target_scenario:
+                phase = "Фаза 1: Радар и Стоп-кран" if day <= 30 else "Фаза 2: Перепрошивка и Контакт"
+                
+                # Evening questions adapted to attachment terminology
+                evening_questions = (
+                    "💡 Вспомни сегодняшний день:\n\n"
+                    "❓ Как сегодня проявился твой тип привязанности в поведении или мыслях?\n\n"
+                    "❓ Какое сопротивление/страх близости или поглощения ты заметил(а)?\n\n"
+                    "❓ Удалось ли выполнить задание и как изменилось твое состояние?\n\n"
+                    "🎙️ Пришли текст или запиши голосовое сообщение."
+                )
+                
+                return {
+                    "day_name": f"День {day}",
+                    "phase": phase,
+                    "theory": row[2] if len(row) > 2 else "",
+                    "task_light": row[3] if len(row) > 3 else "",
+                    "task_medium": row[4] if len(row) > 4 else "",
+                    "task_hard": row[5] if len(row) > 5 else "",
+                    "guard_trap": "",
+                    "evening_report": evening_questions
+                }
+        return None
+        
     COL_DAY = 0
     COL_SCENARIO = 1
     COL_DAY_NAME = 2
@@ -292,7 +360,6 @@ async def get_task_2_0(day: int, scenario: str) -> Optional[Dict[str, Any]]:
     records = await get_all_values(SHEET_NAME_TASK_ENGINE)
     if not records: return None
 
-    target_scenario = str(scenario).lower().strip()
     for row in records[1:]:
         if not row: continue
         sheet_day = str(row[COL_DAY] if len(row) > COL_DAY else "")

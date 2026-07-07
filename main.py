@@ -68,15 +68,28 @@ async def main() -> None:
 
         bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         
-        # Redis Setup
+        # Redis Setup with self-healing Memory fallback if host is down/unreachable
         redis_url = os.getenv("REDIS_URL")
+        storage = None
         if redis_url:
-            from aiogram.fsm.storage.redis import RedisStorage
-            from redis.asyncio import Redis
-            storage = RedisStorage(Redis.from_url(redis_url))
-        else:
+            try:
+                from aiogram.fsm.storage.redis import RedisStorage
+                from redis.asyncio import Redis
+                
+                host_info = redis_url.split("@")[-1] if "@" in redis_url else redis_url
+                logger.info(f"📡 Testing connection to Redis ({host_info})...")
+                r_client = Redis.from_url(redis_url)
+                # Quick ping test with a short timeout to prevent startup hangs
+                await asyncio.wait_for(r_client.ping(), timeout=3.0)
+                storage = RedisStorage(r_client)
+                logger.info("✅ Redis FSM Storage initialized successfully.")
+            except Exception as re:
+                logger.error(f"❌ Redis connection failed: {re}. Falling back to MemoryStorage.")
+                
+        if not storage:
             from aiogram.fsm.storage.memory import MemoryStorage
             storage = MemoryStorage()
+            logger.info("💾 Memory FSM Storage initialized.")
 
         dp = Dispatcher(storage=storage)
         

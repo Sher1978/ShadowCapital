@@ -13,6 +13,7 @@ from utils.alerts import send_red_alert
 from utils.gsheets_api import sync_user_to_sheets, sync_sfi_analytics, get_instruction_text, get_test_answers
 from utils.sfi_logic import calculate_daily_sfi, get_sfi_zone
 from config import ADMIN_IDS, MENU_KEYWORDS, is_admin
+from utils.texts import COMPLETION_TEXT
 from datetime import datetime, timezone, time
 import random
 
@@ -101,11 +102,12 @@ async def command_start_handler(message: types.Message, state: FSMContext, bot: 
         user = user_data
         user['id'] = doc_id
         
-    is_active = (user.get('status') == "active") or is_admin_user
+    is_active = (user.get('status') in ["active", "completed"]) or is_admin_user
     
+    duration = 60 if user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
     await message.answer(
         f"Привет, {hbold(message.from_user.full_name)}! Бот Shadow Guardian на связи.\n"
-        f"Если ты участник Shadow Sprint, я буду сопровождать тебя ближайшие 30 дней.",
+        f"Я буду сопровождать тебя ближайшие {duration} дней.",
         reply_markup=get_main_keyboard(is_admin_user, is_active=is_active)
     )
 
@@ -361,7 +363,12 @@ async def manual_task_trigger(message: types.Message, state: FSMContext, bot: Bo
     user = await FirestoreDB.get_user(message.from_user.id)
     if not user: return
     is_admin_user = message.from_user.id in ADMIN_IDS
-    if user.get('status') != "active" and not is_admin_user:
+    status = user.get('status')
+    if status == "completed":
+        duration = 60 if user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
+        await message.answer(f"🎓 Твой {duration}-дневный путь завершен. Новые задания не предусмотрены, но ты можешь пересмотреть свои результаты и инсайты.")
+        return
+    if status != "active" and not is_admin_user:
         await message.answer("Для получения заданий твой профиль должен быть активирован.")
         return
     from utils.gsheets_api import get_task_2_0
@@ -771,6 +778,16 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
         f"📅 Твой прогресс зафиксирован. Отдыхай и дождись комментария Куратора. До завтра! 🌙"
     )
     await message.answer(success_text, reply_markup=get_main_keyboard())
+    
+    # Completion Message & Status Update (Dynamic Duration)
+    duration = 60 if user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
+    if day == duration:
+        await FirestoreDB.update_user(user['id'], {"status": "completed"})
+        if duration == 60:
+            from utils.texts import COMPLETION_TEXT_ATTACHMENT
+            await message.answer(COMPLETION_TEXT_ATTACHMENT)
+        else:
+            await message.answer(COMPLETION_TEXT)
 
 
 
