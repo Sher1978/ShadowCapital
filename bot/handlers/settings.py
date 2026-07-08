@@ -50,8 +50,9 @@ async def admin_settings_handler(message: types.Message):
     
     await message.answer(text, reply_markup=builder.as_markup())
 
-async def client_settings_handler(message: types.Message):
-    user = await FirestoreDB.get_user(message.from_user.id)
+async def client_settings_handler(message: types.Message, user_id: int = None):
+    target_id = user_id or message.from_user.id
+    user = await FirestoreDB.get_user(target_id)
     if not user:
         return await message.answer("❌ Ошибка: профиль не найден.")
 
@@ -302,14 +303,14 @@ async def client_edit_attachment_start(callback: types.CallbackQuery):
 
 @settings_router.callback_query(F.data.startswith("save_client_attachment_"))
 async def save_client_attachment(callback: types.CallbackQuery):
+    await callback.answer()
     val = callback.data.replace("save_client_attachment_", "")
     user = await FirestoreDB.get_user(callback.from_user.id)
     if user:
         await FirestoreDB.update_user(user['id'], {"attachment_type": val})
         await callback.message.answer(f"✅ Тип привязанности обновлен на: {hbold(val)}")
-    await callback.answer()
     # Go back to settings view
-    await client_settings_handler(callback.message)
+    await client_settings_handler(callback.message, user_id=callback.from_user.id)
     await callback.message.delete()
 
 @settings_router.callback_query(F.data == "client_edit_archetype")
@@ -330,13 +331,13 @@ async def client_edit_archetype_start(callback: types.CallbackQuery):
 
 @settings_router.callback_query(F.data.startswith("save_client_archetype_"))
 async def save_client_archetype(callback: types.CallbackQuery):
+    await callback.answer()
     val = callback.data.replace("save_client_archetype_", "")
     user = await FirestoreDB.get_user(callback.from_user.id)
     if user:
         await FirestoreDB.update_user(user['id'], {"archetype": val})
         await callback.message.answer(f"✅ Ведущий архетип обновлен на: {hbold(val)}")
-    await callback.answer()
-    await client_settings_handler(callback.message)
+    await client_settings_handler(callback.message, user_id=callback.from_user.id)
     await callback.message.delete()
 
 @settings_router.callback_query(F.data == "client_edit_sociotype")
@@ -366,6 +367,7 @@ async def client_edit_sociotype_start(callback: types.CallbackQuery):
 
 @settings_router.callback_query(F.data.startswith("save_client_socio_"))
 async def save_client_sociotype(callback: types.CallbackQuery):
+    await callback.answer()
     code = callback.data.replace("save_client_socio_", "")
     types_map = {
         "ИЛЭ": "ИЛЭ (Дон Кихот)", "СЭИ": "СЭИ (Дюма)", 
@@ -382,12 +384,11 @@ async def save_client_sociotype(callback: types.CallbackQuery):
     if user:
         await FirestoreDB.update_user(user['id'], {"sociotype": val})
         await callback.message.answer(f"✅ Социотип обновлен на: {hbold(val)}")
-    await callback.answer()
-    await client_settings_handler(callback.message)
+    await client_settings_handler(callback.message, user_id=callback.from_user.id)
     await callback.message.delete()
 
 @settings_router.callback_query(F.data == "client_back_to_settings")
 async def client_back_to_settings_callback(callback: types.CallbackQuery):
     await callback.answer()
-    await client_settings_handler(callback.message)
+    await client_settings_handler(callback.message, user_id=callback.from_user.id)
     await callback.message.delete()

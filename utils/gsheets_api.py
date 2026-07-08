@@ -261,6 +261,12 @@ async def sync_gsheets_to_firestore():
         await FirestoreDB.save_global_content("instructions", instruction_text)
         logging.info("✅ Cached Instructions in Firestore.")
         
+    # 4. Sync Test Answers
+    test_answers = await get_test_answers()
+    if test_answers:
+        await FirestoreDB.save_global_content("test_answers", test_answers)
+        logging.info("✅ Cached Test Answers in Firestore.")
+        
     return len(tasks_to_cache)
 
 async def fetch_instructions_from_sheets():
@@ -507,8 +513,19 @@ async def init_test_answers_sheet():
 async def get_test_answers():
     """
     Fetches all diagnostic summaries from the 'Test_answers' sheet.
-    Returns: List of dicts [{'scenario', 'range', 'summary', 'cta'}]
+    Uses Firestore cache as primary source.
     """
+    from database.firebase_db import FirestoreDB
+    
+    # 1. Try cache
+    try:
+        cached = await FirestoreDB.get_cached_global_content("test_answers")
+        if cached:
+            return cached
+    except Exception as e:
+        logging.warning(f"Test answers cache fetch failed: {e}")
+
+    # 2. Fallback to GSheets (slow)
     def _fetch():
         client = get_gsheets_client()
         if not client: return []

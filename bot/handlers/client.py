@@ -550,13 +550,15 @@ async def start_log_callback(callback: types.CallbackQuery):
 
 @client_router.callback_query(F.data == "back_to_menu")
 async def back_to_menu_callback(callback: types.CallbackQuery, state: FSMContext = None):
+    await callback.answer()
     if state:
         await state.clear()
     await callback.message.delete()
     is_user_admin = is_admin(callback.from_user.id)
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    access_status = user.get('access_status', 'resident') if user else 'resident'
     # Simple menu return - user is active if they are here
-    await callback.message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin, is_active=True, access_status=user.get('access_status', 'resident')))
-    await callback.answer()
+    await callback.message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin, is_active=True, access_status=access_status))
 
 @client_router.callback_query(F.data == "re_submit_log")
 async def re_submit_log_callback(callback: types.CallbackQuery):

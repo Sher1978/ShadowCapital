@@ -1,7 +1,8 @@
-﻿import firebase_admin
+import firebase_admin
 from firebase_admin import credentials, firestore
 import logging
 import os
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from config import ADMIN_IDS
@@ -39,228 +40,266 @@ class FirestoreDB:
     @staticmethod
     async def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
         """Fetch user by Telegram ID (Sync wrapper)."""
-        # Using sync call because async hangs locally
-        query = db.collection("users").where("tg_id", "==", tg_id).limit(1)
-        docs = list(query.stream())
-        if docs:
-            data = docs[0].to_dict()
-            data['id'] = docs[0].id
-            return data
-        return None
+        def _fetch():
+            query = db.collection("users").where("tg_id", "==", tg_id).limit(1)
+            docs = list(query.stream())
+            if docs:
+                data = docs[0].to_dict()
+                data['id'] = docs[0].id
+                return data
+            return None
+        return await asyncio.to_thread(_fetch)
 
     @staticmethod
     async def create_user(user_data: Dict[str, Any]) -> str:
         """Create a new user document (Sync wrapper)."""
-        user_data['created_at'] = datetime.now(timezone.utc)
-        _, doc_ref = db.collection("users").add(user_data)
-        return doc_ref.id
+        def _create():
+            user_data['created_at'] = datetime.now(timezone.utc)
+            _, doc_ref = db.collection("users").add(user_data)
+            return doc_ref.id
+        return await asyncio.to_thread(_create)
 
     @staticmethod
     async def update_user(doc_id: str, update_data: Dict[str, Any]):
         """Update user fields (Sync wrapper)."""
-        db.collection("users").document(doc_id).update(update_data)
+        def _update():
+            db.collection("users").document(doc_id).update(update_data)
+        await asyncio.to_thread(_update)
 
     @staticmethod
     async def add_log(user_doc_id: str, log_data: Dict[str, Any]) -> str:
         """Add a shadow log for a user (Sync wrapper)."""
-        log_data['created_at'] = datetime.now(timezone.utc)
-        _, doc_ref = db.collection("users").document(user_doc_id).collection("logs").add(log_data)
-        return doc_ref.id
+        def _add():
+            log_data['created_at'] = datetime.now(timezone.utc)
+            _, doc_ref = db.collection("users").document(user_doc_id).collection("logs").add(log_data)
+            return doc_ref.id
+        return await asyncio.to_thread(_add)
 
     @staticmethod
     async def get_log(user_doc_id: str, log_id: str) -> Optional[Dict[str, Any]]:
         """Fetch a specific log by ID (Sync wrapper)."""
-        doc = db.collection("users").document(user_doc_id).collection("logs").document(log_id).get()
-        if doc.exists:
-            data = doc.to_dict()
-            data['id'] = doc.id
-            return data
-        return None
+        def _get():
+            doc = db.collection("users").document(user_doc_id).collection("logs").document(log_id).get()
+            if doc.exists:
+                data = doc.to_dict()
+                data['id'] = doc.id
+                return data
+            return None
+        return await asyncio.to_thread(_get)
 
     @staticmethod
     async def get_logs(user_doc_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Get recent logs for a user (Sync wrapper)."""
-        query = db.collection("users").document(user_doc_id).collection("logs") \
-                  .order_by("created_at", direction=firestore.Query.DESCENDING) \
-                  .limit(limit)
-        docs = query.stream()
-        return [doc.to_dict() for doc in docs]
+        def _get_all():
+            query = db.collection("users").document(user_doc_id).collection("logs") \
+                      .order_by("created_at", direction=firestore.Query.DESCENDING) \
+                      .limit(limit)
+            docs = query.stream()
+            return [doc.to_dict() for doc in docs]
+        return await asyncio.to_thread(_get_all)
 
     @staticmethod
     async def get_today_log(user_doc_id: str) -> Optional[Dict[str, Any]]:
         """Check if there's a log for the current UTC day (Sync wrapper)."""
-        # Note: timezone-naive datetime comparison might need care but keeping it similar to original
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        query = db.collection("users").document(user_doc_id).collection("logs") \
-                  .where("created_at", ">=", today_start) \
-                  .limit(1)
-        docs = list(query.stream())
-        if docs:
-            return docs[0].to_dict()
-        return None
+        def _get_today():
+            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            query = db.collection("users").document(user_doc_id).collection("logs") \
+                      .where("created_at", ">=", today_start) \
+                      .limit(1)
+            docs = list(query.stream())
+            if docs:
+                return docs[0].to_dict()
+            return None
+        return await asyncio.to_thread(_get_today)
 
     @staticmethod
     async def get_global_settings() -> Dict[str, Any]:
         """Fetch global settings (Sync wrapper)."""
-        logging.info("🔥 FirestoreDB.get_global_settings: Attempting to fetch 'settings/global'...")
-        try:
-            doc = db.collection("settings").document("global").get()
-            if doc.exists:
-                data = doc.to_dict()
-                logging.info(f"🔥 Found global settings: {data}")
-                return data
-            else:
-                logging.warning("🔥 Global settings not found in Firestore, using defaults.")
-                defaults = {
+        def _get_settings():
+            logging.info("🔥 FirestoreDB.get_global_settings: Attempting to fetch 'settings/global'...")
+            try:
+                doc = db.collection("settings").document("global").get()
+                if doc.exists:
+                    data = doc.to_dict()
+                    logging.info(f"🔥 Found global settings: {data}")
+                    return data
+                else:
+                    logging.warning("🔥 Global settings not found in Firestore, using defaults.")
+                    defaults = {
+                        "morning_time": "09:00",
+                        "deadline_time": "20:30",
+                        "evening_time": "21:30",
+                        "sunday_time": "18:00"
+                    }
+                    db.collection("settings").document("global").set(defaults)
+                    return defaults
+            except Exception as e:
+                logging.error(f"🔥 Error in get_global_settings: {e}", exc_info=True)
+                return {
                     "morning_time": "09:00",
                     "deadline_time": "20:30",
                     "evening_time": "21:30",
                     "sunday_time": "18:00"
                 }
-                db.collection("settings").document("global").set(defaults)
-                return defaults
-        except Exception as e:
-            logging.error(f"🔥 Error in get_global_settings: {e}", exc_info=True)
-            return {
-                "morning_time": "09:00",
-                "deadline_time": "20:30",
-                "evening_time": "21:30",
-                "sunday_time": "18:00"
-            }
+        return await asyncio.to_thread(_get_settings)
 
     @staticmethod
     async def update_global_settings(update_data: Dict[str, Any]):
         """Update global settings (Sync wrapper)."""
-        db.collection("settings").document("global").update(update_data)
+        def _update():
+            db.collection("settings").document("global").update(update_data)
+        await asyncio.to_thread(_update)
 
     @staticmethod
     async def get_active_users() -> List[Dict[str, Any]]:
         """Get all active users for scheduler (Sync wrapper)."""
-        query = db.collection("users").where("status", "==", "active")
-        docs = query.stream()
-        users = []
-        for doc in docs:
-            d = doc.to_dict()
-            d['id'] = doc.id
-            if d.get('tg_id') in ADMIN_IDS:
-                continue
-            users.append(d)
-        return users
+        def _get_active():
+            query = db.collection("users").where("status", "==", "active")
+            docs = query.stream()
+            users = []
+            for doc in docs:
+                d = doc.to_dict()
+                d['id'] = doc.id
+                if d.get('tg_id') in ADMIN_IDS:
+                    continue
+                users.append(d)
+            return users
+        return await asyncio.to_thread(_get_active)
 
     @staticmethod
     async def get_archived_users(limit: int = 10, offset: int = 0) -> List[Dict[str, Any]]:
         """Get archived users with pagination (Sync wrapper)."""
-        query = db.collection("users").where("status", "==", "archived").limit(limit + offset)
-        docs = list(query.stream())
-        users = []
-        subset = docs[offset:] if len(docs) > offset else []
-        for doc in subset:
-            d = doc.to_dict()
-            d['id'] = doc.id
-            users.append(d)
-        return users
+        def _get_archived():
+            query = db.collection("users").where("status", "==", "archived").limit(limit + offset)
+            docs = list(query.stream())
+            users = []
+            subset = docs[offset:] if len(docs) > offset else []
+            for doc in subset:
+                d = doc.to_dict()
+                d['id'] = doc.id
+                users.append(d)
+            return users
+        return await asyncio.to_thread(_get_archived)
 
     @staticmethod
     async def save_tasks_matrix(tasks_list: List[Dict[str, Any]]):
         """Overwrite the tasks_matrix collection with fresh data."""
-        batch = db.batch()
-        # Delete existing tasks first (simplified - limit 500)
-        old_tasks = db.collection("tasks_matrix").limit(500).stream()
-        for doc in old_tasks:
-            batch.delete(doc.reference)
-        
-        # Add new tasks
-        for task in tasks_list:
-            doc_id = f"day_{task['day']}_{task.get('scenario', 'all')}"
-            doc_ref = db.collection("tasks_matrix").document(doc_id)
-            batch.set(doc_ref, task)
-        
-        batch.commit()
-        # Update last sync timestamp
-        db.collection("settings").document("sync_info").set({
-            "tasks_last_sync": datetime.now(timezone.utc)
-        }, merge=True)
+        def _save():
+            batch = db.batch()
+            # Delete existing tasks first (simplified - limit 500)
+            old_tasks = db.collection("tasks_matrix").limit(500).stream()
+            for doc in old_tasks:
+                batch.delete(doc.reference)
+            
+            # Add new tasks
+            for task in tasks_list:
+                doc_id = f"day_{task['day']}_{task.get('scenario', 'all')}"
+                doc_ref = db.collection("tasks_matrix").document(doc_id)
+                batch.set(doc_ref, task)
+            
+            batch.commit()
+            # Update last sync timestamp
+            db.collection("settings").document("sync_info").set({
+                "tasks_last_sync": datetime.now(timezone.utc)
+            }, merge=True)
+        await asyncio.to_thread(_save)
 
     @staticmethod
     async def get_cached_task(day: int, scenario: str) -> Optional[Dict[str, Any]]:
         """Retrieve a task from the Firestore cache."""
-        target_scenario = str(scenario).lower().strip()
-        doc_id = f"day_{day}_{target_scenario}"
-        doc = db.collection("tasks_matrix").document(doc_id).get()
-        if doc.exists:
-            return doc.to_dict()
-        
-        # Fallback to "all" scenario for that day
-        doc_id_all = f"day_{day}_all"
-        doc_all = db.collection("tasks_matrix").document(doc_id_all).get()
-        if doc_all.exists:
-            return doc_all.to_dict()
+        def _get_task():
+            target_scenario = str(scenario).lower().strip()
+            doc_id = f"day_{day}_{target_scenario}"
+            doc = db.collection("tasks_matrix").document(doc_id).get()
+            if doc.exists:
+                return doc.to_dict()
             
-        return None
+            # Fallback to "all" scenario for that day
+            doc_id_all = f"day_{day}_all"
+            doc_all = db.collection("tasks_matrix").document(doc_id_all).get()
+            if doc_all.exists:
+                return doc_all.to_dict()
+                
+            return None
+        return await asyncio.to_thread(_get_task)
 
     @staticmethod
     async def save_global_content(key: str, content: Any):
         """Save specialized content (instructions, questions) to cache."""
-        db.collection("global_cache").document(key).set({
-            "content": content,
-            "updated_at": datetime.now(timezone.utc)
-        })
+        def _save():
+            db.collection("global_cache").document(key).set({
+                "content": content,
+                "updated_at": datetime.now(timezone.utc)
+            })
+        await asyncio.to_thread(_save)
 
     @staticmethod
     async def get_cached_global_content(key: str) -> Optional[Any]:
         """Retrieve specialized content from cache."""
-        doc = db.collection("global_cache").document(key).get()
-        if doc.exists:
-            return doc.to_dict().get("content")
-        return None
+        def _get():
+            doc = db.collection("global_cache").document(key).get()
+            if doc.exists:
+                return doc.to_dict().get("content")
+            return None
+        return await asyncio.to_thread(_get)
 
     @staticmethod
     async def get_sfi_lead(uuid: str) -> Optional[Dict[str, Any]]:
         """Fetch a specific SFI lead result from the web diagnostic in (default) database."""
-        # Force use of db_sfi to target (default) database where functions write leads
-        doc = db_sfi.collection("sfi_leads").document(uuid).get()
-        if doc.exists:
-            data = doc.to_dict()
-            data['id'] = doc.id
-            return data
-        return None
+        def _get_lead():
+            doc = db_sfi.collection("sfi_leads").document(uuid).get()
+            if doc.exists:
+                data = doc.to_dict()
+                data['id'] = doc.id
+                return data
+            return None
+        return await asyncio.to_thread(_get_lead)
 
     @staticmethod
     async def delete_user_and_data(tg_id: int):
         """Delete user and all their sub-collections (Sync wrapper)."""
-        query = db.collection("users").where("tg_id", "==", tg_id).limit(1)
-        docs = list(query.stream())
-        if docs:
-            user_doc = docs[0]
-            # Delete logs sub-collection (up to 500 logs)
-            logs = user_doc.reference.collection("logs").limit(500).stream()
-            batch = db.batch()
-            for log in logs:
-                batch.delete(log.reference)
-            batch.delete(user_doc.reference)
-            batch.commit()
-            logging.info(f"🔥 Deleted user {tg_id} and their logs from Firestore.")
+        def _delete():
+            query = db.collection("users").where("tg_id", "==", tg_id).limit(1)
+            docs = list(query.stream())
+            if docs:
+                user_doc = docs[0]
+                # Delete logs sub-collection (up to 500 logs)
+                logs = user_doc.reference.collection("logs").limit(500).stream()
+                batch = db.batch()
+                for log in logs:
+                    batch.delete(log.reference)
+                batch.delete(user_doc.reference)
+                batch.commit()
+                logging.info(f"🔥 Deleted user {tg_id} and their logs from Firestore.")
+        await asyncio.to_thread(_delete)
+
     @staticmethod
     async def save_audit(user_doc_id: str, day: int, audit_data: Dict[str, Any]):
         """Save a life currency audit for a user (Sync wrapper)."""
-        audit_data['created_at'] = datetime.now(timezone.utc)
-        audit_data['day'] = day
-        doc_id = f"day_{day}"
-        db.collection("users").document(user_doc_id).collection("audits").document(doc_id).set(audit_data)
+        def _save():
+            audit_data['created_at'] = datetime.now(timezone.utc)
+            audit_data['day'] = day
+            doc_id = f"day_{day}"
+            db.collection("users").document(user_doc_id).collection("audits").document(doc_id).set(audit_data)
+        await asyncio.to_thread(_save)
 
     @staticmethod
     async def get_audit(user_doc_id: str, day: int) -> Optional[Dict[str, Any]]:
         """Fetch audit results for a specific day (Sync wrapper)."""
-        doc_id = f"day_{day}"
-        doc = db.collection("users").document(user_doc_id).collection("audits").document(doc_id).get()
-        if doc.exists:
-            return doc.to_dict()
-        return None
+        def _get():
+            doc_id = f"day_{day}"
+            doc = db.collection("users").document(user_doc_id).collection("audits").document(doc_id).get()
+            if doc.exists:
+                return doc.to_dict()
+            return None
+        return await asyncio.to_thread(_get)
 
     @staticmethod
     async def get_audit_baseline(user_doc_id: str) -> Optional[Dict[str, Any]]:
         """Fetch the first audit (Day 1) for baseline comparison."""
-        doc = db.collection("users").document(user_doc_id).collection("audits").document("day_1").get()
-        if doc.exists:
-            return doc.to_dict()
-        return None
+        def _get_baseline():
+            doc = db.collection("users").document(user_doc_id).collection("audits").document("day_1").get()
+            if doc.exists:
+                return doc.to_dict()
+            return None
+        return await asyncio.to_thread(_get_baseline)
