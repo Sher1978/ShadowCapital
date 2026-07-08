@@ -14,6 +14,7 @@ from utils.gsheets_api import sync_user_to_sheets, sync_sfi_analytics, get_instr
 from utils.sfi_logic import calculate_daily_sfi, get_sfi_zone
 from config import ADMIN_IDS, MENU_KEYWORDS, is_admin
 from utils.texts import COMPLETION_TEXT
+from bot.states import ClientStates
 from datetime import datetime, timezone, time
 import random
 
@@ -953,7 +954,7 @@ async def edit_log_handler(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(ClientStates.waiting_for_log)
 
 @client_router.callback_query(F.data.startswith("confirm_task:"))
-async def confirm_task_handler(callback: types.CallbackQuery, bot: Bot):
+async def confirm_task_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     level_str = callback.data.split(":")[1]
     level_names = {"light": "Light", "medium": "Medium", "hard": "Hard"}
     user = await FirestoreDB.get_user(callback.from_user.id)
@@ -978,6 +979,65 @@ async def confirm_task_handler(callback: types.CallbackQuery, bot: Bot):
             task_text_plain = callback.message.text.split("\n\n", 1)[1].split("🔍")[0].strip()
         except:
             task_text_plain = "Задача выбрана"
+    # --- SIMULATOR INITIALIZATION FOR ATTACHMENT SCENARIOS ---
+    is_attachment = user.get("scenario_type") in ["Тревожный", "Избегающий", "Тревожно-избегающий"]
+    if level_str == "hard" and is_attachment:
+        from utils.timezone_utils import get_user_current_day
+        start_date = user.get("sprint_start_date") or user.get("created_at")
+        day = get_user_current_day(start_date, user.get("timezone", "UTC+7"))
+        
+        from utils.gsheets_api import get_task_2_0
+        task_data = await get_task_2_0(day, user.get("scenario_type"))
+        task_hard = task_data.get("task_hard") if task_data else task_text_plain
+        
+        await FirestoreDB.update_user(user['id'], {"current_day_level": 3})
+        
+        admin_msg = (
+            f"🎭 {hbold('Запущен Тренажер (Hard)!')}\n\n"
+            f"👤 {hbold('Клиент:')} {user.get('full_name')}\n"
+            f"🎯 {hbold('Уровень:')} 🔥 Hard\n"
+            f"⏰ {hbold('Время:')} {confirm_time} UTC\n\n"
+            f"📝 {hbold('Сценарий:')}\n{hitalic(task_hard)}"
+        )
+        for admin_id in ADMIN_IDS:
+            try: await bot.send_message(admin_id, admin_msg)
+            except: pass
+            
+        await callback.message.edit_text(
+            f"🎭 {hbold('ИИ-Тренажер активирован!')}\n"
+            f"Уровень: {hbold('🔥 Hard')}\n\n"
+            f"🎯 {hbold('Задание:')}\n{task_hard}\n\n"
+            f"⏳ {hbold('Запускаю сессию симуляции...')}",
+            reply_markup=None
+        )
+        
+        from bot.states import ClientStates
+        await state.set_state(ClientStates.in_simulation)
+        
+        from utils.simulator import get_simulator_first_turn
+        try:
+            first_move = await get_simulator_first_turn(task_hard)
+            
+            await state.update_data(
+                sim_scenario=task_hard,
+                sim_history=[{"role": "model", "parts": [{"text": first_move}]}],
+                sim_turn_count=1
+            )
+            
+            welcome_simulator = (
+                f"🎭 {hbold('Вход в роль:')}\n\n"
+                f"{first_move}\n\n"
+                f"✍️ Напиши свой ответ или запиши голосовое сообщение, чтобы продолжить."
+            )
+            await callback.message.answer(welcome_simulator, reply_markup=types.ReplyKeyboardRemove())
+        except Exception as e:
+            logging.error(f"Failed to start simulation: {e}")
+            await callback.message.answer("❌ Не удалось запустить симуляцию. Попробуйте еще раз.")
+            await state.clear()
+            
+        await callback.answer("Тренажер запущен!")
+        return
+    # --- END SIMULATOR INITIALIZATION ---
 
     admin_msg = (
         f"✅ {hbold('Задача принята!')}\n\n"
@@ -1005,3 +1065,243 @@ async def confirm_task_handler(callback: types.CallbackQuery, bot: Bot):
         reply_markup=get_main_keyboard(is_admin=is_admin_user, is_active=True)
     )
     await callback.answer("Задание принято!")
+
+
+@client_router.message(ClientStates.in_simulation)
+async def simulation_message_handler(message: types.Message, state: FSMContext, bot: Bot):
+    user = await FirestoreDB.get_user(message.from_user.id)
+    if not user: return
+    
+    is_voice = message.voice is not None or message.audio is not None
+    user_text = message.text
+    
+    if is_voice:
+        try:
+            file_id = message.voice.file_id if message.voice else message.audio.file_id
+            await message.answer("🔊 Расшифровываю твое голосовое сообщение...")
+            
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            perm_path = os.path.join(temp_dir, f"{file_id}.ogg")
+            
+            file = await bot.get_file(file_id)
+            await bot.download_file(file.file_path, perm_path)
+            user_text = await transcribe_voice(perm_path)
+            
+            if os.path.exists(perm_path):
+                os.remove(perm_path)
+                
+            await message.answer(f"🗣 {hbold('Твой ответ:')}\n{hitalic(user_text)}")
+        except Exception as e:
+            logging.error(f"Failed to transcribe voice: {e}")
+            await message.answer("❌ Не удалось распознать голосовое сообщение. Пожалуйста, напишите текстом.")
+            return
+
+    if not user_text or not user_text.strip():
+        await message.answer("Пожалуйста, напиши текстовое сообщение или пришли голосовое.")
+        return
+
+    data = await state.get_data()
+    scenario = data.get("sim_scenario")
+    history = data.get("sim_history", [])
+    turn_count = data.get("sim_turn_count", 0) + 1
+    
+    await message.answer("🤖 Размышляю...")
+    
+    from utils.simulator import run_simulator_turn
+    try:
+        reply_text = await run_simulator_turn(history, user_text, scenario, turn_count)
+        
+        is_completed = "СИМУЛЯЦИЯ ЗАВЕРШЕНА" in reply_text
+        
+        await state.update_data(
+            sim_history=history,
+            sim_turn_count=turn_count
+        )
+        
+        if is_completed:
+            await state.clear()
+            await FirestoreDB.update_user(user['id'], {"current_day_level": 2})
+            
+            transcript = ""
+            for msg in history:
+                role = "Тренажер" if msg["role"] == "model" else "Клиент"
+                text = msg["parts"][0]["text"]
+                if "[СИСТЕМНАЯ КОМАНДА" in text:
+                    text = text.split("[СИСТЕМНАЯ КОМАНДА")[0].strip()
+                transcript += f"🔹 {hbold(role)}:\n{text}\n\n"
+                
+            log_content = (
+                f"🎭 {hbold('СЕССИЯ В ИИ-ТРЕНАЖЕРЕ ЗАВЕРШЕНА!')}\n\n"
+                f"{transcript}"
+            )
+            
+            log_data = {
+                "content": log_content,
+                "is_voice": is_voice,
+                "analysis": {
+                    "feedback_to_client": reply_text,
+                    "is_sabotage": False,
+                    "sfi_score": 0.0,
+                    "discomfort": 3,
+                    "level": 3,
+                    "status": 1
+                }
+            }
+            log_id = await FirestoreDB.add_log(user["id"], log_data)
+            
+            analysis_payload = {
+                "feedback_to_client": reply_text,
+                "sfi_score": 0.0,
+                "media_type": "voice" if is_voice else None,
+                "file_id": None
+            }
+            await notify_admin_of_report(bot, user, log_content, analysis_payload, log_id)
+            
+            clean_reply = reply_text.replace("🛑 СИМУЛЯЦИЯ ЗАВЕРШЕНА", "").strip()
+            final_msg = (
+                f"🛑 {hbold('СИМУЛЯЦИЯ ЗАВЕРШЕНА')}\n\n"
+                f"{clean_reply}\n\n"
+                f"📅 Твой результат симуляции сохранен и отправлен Куратору. До завтра! 🌙"
+            )
+            await message.answer(final_msg, reply_markup=get_main_keyboard(user.get("role") == "admin", is_active=True))
+            
+            from utils.timezone_utils import get_user_current_day
+            start_date = user.get('sprint_start_date') or user.get('created_at')
+            day = get_user_current_day(start_date, user.get('timezone', 'UTC+7'))
+            duration = 60 if user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
+            if day == duration:
+                await FirestoreDB.update_user(user['id'], {"status": "completed"})
+                if duration == 60:
+                    from utils.texts import COMPLETION_TEXT_ATTACHMENT
+                    await message.answer(COMPLETION_TEXT_ATTACHMENT)
+                else:
+                    from utils.texts import COMPLETION_TEXT
+                    await message.answer(COMPLETION_TEXT)
+        else:
+            await message.answer(
+                f"🎭 {hbold('Тренажер:')}\n\n{reply_text}"
+            )
+    except Exception as e:
+        logging.error(f"Error during simulation turn: {e}")
+        await message.answer("❌ Произошла ошибка при обработке реплики тренажером. Пожалуйста, попробуйте еще раз.")
+
+
+@client_router.message(ClientStates.in_simulation)
+async def simulation_message_handler(message: types.Message, state: FSMContext, bot: Bot):
+    user = await FirestoreDB.get_user(message.from_user.id)
+    if not user: return
+    
+    is_voice = message.voice is not None or message.audio is not None
+    user_text = message.text
+    
+    if is_voice:
+        try:
+            file_id = message.voice.file_id if message.voice else message.audio.file_id
+            await message.answer("🔊 Расшифровываю твое голосовое сообщение...")
+            
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            perm_path = os.path.join(temp_dir, f"{file_id}.ogg")
+            
+            file = await bot.get_file(file_id)
+            await bot.download_file(file.file_path, perm_path)
+            user_text = await transcribe_voice(perm_path)
+            
+            if os.path.exists(perm_path):
+                os.remove(perm_path)
+                
+            await message.answer(f"🗣 {hbold('Твой ответ:')}\n{hitalic(user_text)}")
+        except Exception as e:
+            logging.error(f"Failed to transcribe voice: {e}")
+            await message.answer("❌ Не удалось распознать голосовое сообщение. Пожалуйста, напишите текстом.")
+            return
+
+    if not user_text or not user_text.strip():
+        await message.answer("Пожалуйста, напиши текстовое сообщение или пришли голосовое.")
+        return
+
+    data = await state.get_data()
+    scenario = data.get("sim_scenario")
+    history = data.get("sim_history", [])
+    turn_count = data.get("sim_turn_count", 0) + 1
+    
+    await message.answer("🤖 Размышляю...")
+    
+    from utils.simulator import run_simulator_turn
+    try:
+        reply_text = await run_simulator_turn(history, user_text, scenario, turn_count)
+        
+        is_completed = "СИМУЛЯЦИЯ ЗАВЕРШЕНА" in reply_text
+        
+        await state.update_data(
+            sim_history=history,
+            sim_turn_count=turn_count
+        )
+        
+        if is_completed:
+            await state.clear()
+            await FirestoreDB.update_user(user['id'], {"current_day_level": 2})
+            
+            transcript = ""
+            for msg in history:
+                role = "Тренажер" if msg["role"] == "model" else "Клиент"
+                text = msg["parts"][0]["text"]
+                if "[СИСТЕМНАЯ КОМАНДА" in text:
+                    text = text.split("[СИСТЕМНАЯ КОМАНДА")[0].strip()
+                transcript += f"🔹 {hbold(role)}:\n{text}\n\n"
+                
+            log_content = (
+                f"🎭 {hbold('СЕССИЯ В ИИ-ТРЕНАЖЕРЕ ЗАВЕРШЕНА!')}\n\n"
+                f"{transcript}"
+            )
+            
+            log_data = {
+                "content": log_content,
+                "is_voice": is_voice,
+                "analysis": {
+                    "feedback_to_client": reply_text,
+                    "is_sabotage": False,
+                    "sfi_score": 0.0,
+                    "discomfort": 3,
+                    "level": 3,
+                    "status": 1
+                }
+            }
+            log_id = await FirestoreDB.add_log(user["id"], log_data)
+            
+            analysis_payload = {
+                "feedback_to_client": reply_text,
+                "sfi_score": 0.0,
+                "media_type": "voice" if is_voice else None,
+                "file_id": None
+            }
+            await notify_admin_of_report(bot, user, log_content, analysis_payload, log_id)
+            
+            clean_reply = reply_text.replace("🛑 СИМУЛЯЦИЯ ЗАВЕРШЕНА", "").strip()
+            final_msg = (
+                f"🛑 {hbold('СИМУЛЯЦИЯ ЗАВЕРШЕНА')}\n\n"
+                f"{clean_reply}\n\n"
+                f"📅 Твой результат симуляции сохранен и отправлен Куратору. До завтра! 🌙"
+            )
+            await message.answer(final_msg, reply_markup=get_main_keyboard(user.get("role") == "admin", is_active=True))
+            
+            from utils.timezone_utils import get_user_current_day
+            start_date = user.get('sprint_start_date') or user.get('created_at')
+            day = get_user_current_day(start_date, user.get('timezone', 'UTC+7'))
+            duration = 60 if user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
+            if day == duration:
+                await FirestoreDB.update_user(user['id'], {"status": "completed"})
+                if duration == 60:
+                    from utils.texts import COMPLETION_TEXT_ATTACHMENT
+                    await message.answer(COMPLETION_TEXT_ATTACHMENT)
+                else:
+                    from utils.texts import COMPLETION_TEXT
+                    await message.answer(COMPLETION_TEXT)
+        else:
+            await message.answer(
+                f"🎭 {hbold('Тренажер:')}\n\n{reply_text}"
+            )
+    except Exception as e:
+        logging.error(f"Error during simulation turn: {e}")
+        await message.answer("❌ Произошла ошибка при обработке реплики тренажером. Пожалуйста, попробуйте еще раз.")

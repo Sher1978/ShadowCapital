@@ -1,4 +1,4 @@
-﻿from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State, StatesGroup
 
 class AdminRegistration(StatesGroup):
     waiting_for_username = State()
@@ -26,6 +26,7 @@ class AdminStates(StatesGroup):
 class ClientStates(StatesGroup):
     waiting_for_log = State()
     waiting_for_log_confirmation = State()
+    in_simulation = State()
 
 class ClientSettings(StatesGroup):
     waiting_for_edit_name = State()
