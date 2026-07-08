@@ -612,6 +612,13 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
     builder.button(text="⬅️ К списку", callback_data="active_page_0")
     builder.adjust(1, 1, 2, 1, 1, 1)
     
+    access_status_map = {
+        "resident": "1. Резидент",
+        "ambassador": "2. Амбассадор",
+        "master": "3. Мастер"
+    }
+    user_access = access_status_map.get(user.get("access_status", "resident"), "1. Резидент")
+
     text = (
         f"📊 {hbold('Статистика Спринта:')}\n\n"
         f"👤 Имя: {user.get('full_name')}\n"
@@ -622,6 +629,7 @@ async def view_user_stats_handler(callback: types.CallbackQuery):
         f"🚩 Флаги саботажа: {flags}\n"
         f"🌡 Уровень трения: {friction}\n\n"
         f"🌍 Часовой пояс: {user.get('timezone', 'UTC+0')}\n"
+        f"🔒 Уровень Доступа: {user_access}\n\n"
         f"💡 {hbold('Последний инсайт:')}\n"
         f"{user.get('last_insight') or 'Данных пока нет.'}"
     )
@@ -1002,6 +1010,7 @@ async def edit_profile_start(callback: types.CallbackQuery, state: FSMContext):
     builder.button(text="👁 Сценарий", callback_data="edit_field_scenario")
     builder.button(text="🌍 Часовой пояс", callback_data="edit_field_timezone")
     builder.button(text="📅 День Спринта", callback_data="edit_field_day")
+    builder.button(text="🔒 Уровень Доступа", callback_data="edit_field_access_status")
     builder.button(text="⬅️ Отмена", callback_data=f"view_stats_{client_id}")
     builder.adjust(1)
     
@@ -1483,3 +1492,43 @@ async def admin_catch_all(message: types.Message):
     await message.answer("⚠️ Команда не распознана. Используйте /menu для доступа к панели управления.")
 
 
+
+
+@admin_router.callback_query(F.data == "edit_field_access_status")
+async def edit_access_status_start(callback: types.CallbackQuery, state: FSMContext):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text="1. Резидент", callback_data="save_access_resident")
+    builder.button(text="2. Амбассадор", callback_data="save_access_ambassador")
+    builder.button(text="3. Мастер", callback_data="save_access_master")
+    
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"edit_profile_{client_id}"))
+    builder.adjust(1)
+    
+    await callback.message.edit_text("Выберите уровень доступа для клиента:", reply_markup=builder.as_markup())
+    await callback.answer()
+
+@admin_router.callback_query(F.data.startswith("save_access_"))
+async def process_edit_access_status(callback: types.CallbackQuery, state: FSMContext):
+    new_status = callback.data.replace("save_access_", "")
+    data = await state.get_data()
+    client_id = data.get("edit_client_id")
+    
+    user = await FirestoreDB.get_user(client_id)
+    if user:
+        await FirestoreDB.update_user(user['id'], {"access_status": new_status})
+        
+        status_names = {
+            "resident": "1. Резидент",
+            "ambassador": "2. Амбассадор",
+            "master": "3. Мастер"
+        }
+        status_name = status_names.get(new_status, new_status)
+        await callback.message.answer(f"✅ Уровень доступа обновлен на: {hbold(status_name)}")
+    else:
+        await callback.answer("Ошибка: клиент не найден.")
+    
+    await state.clear()

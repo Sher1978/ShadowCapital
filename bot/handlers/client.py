@@ -109,7 +109,7 @@ async def command_start_handler(message: types.Message, state: FSMContext, bot: 
     await message.answer(
         f"Привет, {hbold(message.from_user.full_name)}! Бот Shadow Guardian на связи.\n"
         f"Я буду сопровождать тебя ближайшие {duration} дней.",
-        reply_markup=get_main_keyboard(is_admin_user, is_active=is_active)
+        reply_markup=get_main_keyboard(is_admin_user, is_active=is_active, access_status=user.get('access_status', 'resident'))
     )
 
 async def handle_sfi_deep_link(message: types.Message, bot: Bot, uuid: str):
@@ -127,6 +127,33 @@ async def handle_sfi_deep_link(message: types.Message, bot: Bot, uuid: str):
     sfi = lead.get('sfi_score', 0)
     archetype = lead.get('archetype', 'Unknown')
     zone_scores = lead.get('zone_scores', {}) # Map: {Vitality: 15, Sovereign: 20...}
+
+    # Retrieve user or create one, then save results
+    is_admin_user = message.from_user.id in ADMIN_IDS
+    user_db = await FirestoreDB.get_user(message.from_user.id)
+    if not user_db:
+        user_data = {
+            "tg_id": message.from_user.id,
+            "username": message.from_user.username,
+            "full_name": message.from_user.full_name,
+            "role": "admin" if is_admin_user else "client",
+            "status": "active" if is_admin_user else "new",
+            "sfi_index": sfi / 100.0,
+            "archetype": archetype,
+            "red_flags_count": 0,
+            "access_status": "resident"
+        }
+        doc_id = await FirestoreDB.create_user(user_data)
+        user_db = user_data
+        user_db['id'] = doc_id
+    else:
+        # Overwrite existing profile SFI and archetype
+        await FirestoreDB.update_user(user_db['id'], {
+            "sfi_index": sfi / 100.0,
+            "archetype": archetype
+        })
+        user_db['sfi_index'] = sfi / 100.0
+        user_db['archetype'] = archetype
     
     # Fetch dynamic summaries from GSheets
     summaries_data = await get_test_answers()
@@ -176,7 +203,7 @@ async def handle_sfi_deep_link(message: types.Message, bot: Bot, uuid: str):
     
     await message.answer(
         welcome_text,
-        reply_markup=get_main_keyboard(is_admin=message.from_user.id in ADMIN_IDS, is_active=True)
+        reply_markup=get_main_keyboard(is_admin=message.from_user.id in ADMIN_IDS, is_active=True, access_status=user_db.get('access_status', 'resident'))
     )
 
     # Fetch user data for phone number and telegram info
@@ -464,7 +491,7 @@ async def curator_question_handler(message: types.Message, bot: Bot):
         f"🎯 {hbold('Твой SFI Index: ')}{round(user.get('sfi_index', 0), 2)}\n\n"
         f"Твой результат зафиксирован. Мы уже готовим для тебя индивидуальную программу обучения. "
         f"Нажми кнопку ниже, чтобы подать заявку на участие в Спринте!",
-        reply_markup=get_main_keyboard(is_active=False)
+        reply_markup=get_main_keyboard(is_active=False, access_status=user.get('access_status', 'resident'))
     )
 
 
@@ -528,7 +555,7 @@ async def back_to_menu_callback(callback: types.CallbackQuery, state: FSMContext
     await callback.message.delete()
     is_user_admin = is_admin(callback.from_user.id)
     # Simple menu return - user is active if they are here
-    await callback.message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin, is_active=True))
+    await callback.message.answer("Возврат в меню.", reply_markup=get_main_keyboard(is_admin=is_user_admin, is_active=True, access_status=user.get('access_status', 'resident')))
     await callback.answer()
 
 @client_router.callback_query(F.data == "re_submit_log")
@@ -778,7 +805,7 @@ async def process_shadow_log(message: types.Message, bot: Bot, user: dict, conte
         f"{insight_msg}\n\n"
         f"📅 Твой прогресс зафиксирован. Отдыхай и дождись комментария Куратора. До завтра! 🌙"
     )
-    await message.answer(success_text, reply_markup=get_main_keyboard())
+    await message.answer(success_text, reply_markup=get_main_keyboard(access_status=user.get('access_status', 'resident')))
     
     # Completion Message & Status Update (Dynamic Duration)
     duration = 60 if user.get('scenario_type') in ["Тревожный", "Избегающий", "Тревожно-избегающий"] else 30
@@ -1062,7 +1089,7 @@ async def confirm_task_handler(callback: types.CallbackQuery, state: FSMContext,
     is_admin_user = callback.from_user.id in ADMIN_IDS
     await callback.message.answer(
         "Используй меню ниже для навигации.", 
-        reply_markup=get_main_keyboard(is_admin=is_admin_user, is_active=True)
+        reply_markup=get_main_keyboard(is_admin=is_admin_user, is_active=True, access_status=user.get('access_status', 'resident'))
     )
     await callback.answer("Задание принято!")
 
@@ -1164,7 +1191,7 @@ async def simulation_message_handler(message: types.Message, state: FSMContext, 
                 f"{clean_reply}\n\n"
                 f"📅 Твой результат симуляции сохранен и отправлен Куратору. До завтра! 🌙"
             )
-            await message.answer(final_msg, reply_markup=get_main_keyboard(user.get("role") == "admin", is_active=True))
+            await message.answer(final_msg, reply_markup=get_main_keyboard(user.get("role") == "admin", is_active=True, access_status=user.get("access_status", "resident")))
             
             from utils.timezone_utils import get_user_current_day
             start_date = user.get('sprint_start_date') or user.get('created_at')
@@ -1284,7 +1311,7 @@ async def simulation_message_handler(message: types.Message, state: FSMContext, 
                 f"{clean_reply}\n\n"
                 f"📅 Твой результат симуляции сохранен и отправлен Куратору. До завтра! 🌙"
             )
-            await message.answer(final_msg, reply_markup=get_main_keyboard(user.get("role") == "admin", is_active=True))
+            await message.answer(final_msg, reply_markup=get_main_keyboard(user.get("role") == "admin", is_active=True, access_status=user.get("access_status", "resident")))
             
             from utils.timezone_utils import get_user_current_day
             start_date = user.get('sprint_start_date') or user.get('created_at')
@@ -1305,3 +1332,52 @@ async def simulation_message_handler(message: types.Message, state: FSMContext, 
     except Exception as e:
         logging.error(f"Error during simulation turn: {e}")
         await message.answer("❌ Произошла ошибка при обработке реплики тренажером. Пожалуйста, попробуйте еще раз.")
+
+
+# --- Main Menu Action Handlers for Access Levels ---
+
+@client_router.message(F.text == "🔍 Сканирование")
+async def client_scanning_dossier_handler(message: types.Message):
+    user = await FirestoreDB.get_user(message.from_user.id)
+    if not user or not user.get("archetype"):
+        builder = InlineKeyboardBuilder()
+        builder.button(text="📝 Пройти тест", url="https://shershadow.web.app/sfitest")
+        await message.answer(
+            "⚠️ У тебя еще нет результатов сканирования. Пройди тест на нашем сайте, чтобы получить SFI досье.",
+            reply_markup=builder.as_markup()
+        )
+        return
+        
+    sfi = int((user.get("sfi_index", 0.5)) * 100)
+    archetype = user.get("archetype", "Unknown")
+    
+    await message.answer(
+        f"🗝 {hbold('SFI ДОСЬЕ:')}\n\n"
+        f"📊 {hbold('Текущий SFI Index:')} {sfi}%\n"
+        f"🏆 {hbold('Ведущий Архетип:')} {archetype}\n\n"
+        f"Диагностика подтверждает наличие Теневого Капитала. Твои показатели трения сохранены в системе."
+    )
+
+@client_router.message(F.text == "📱 Мой QR-код")
+async def client_qr_code_handler(message: types.Message, bot: Bot):
+    bot_user = await bot.get_me()
+    ref_link = f"https://t.me/{bot_user.username}?start=ref_{message.from_user.id}"
+    
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={ref_link}"
+    
+    await message.answer_photo(
+        photo=qr_url,
+        caption=(
+            f"📱 {hbold('Твой персональный QR-код')}\n\n"
+            f"Покажи этот код другу, чтобы он мог пройти тест SFI и подключиться к Shadow Guardian!\n\n"
+            f"Ссылка: {ref_link}"
+        )
+    )
+
+@client_router.message(F.text.in_(["🧠 ME.OS (L1)", "🧠 ME.OS (L2)", "👥 WE.OS (L1)", "👥 WE.OS (L2)"]))
+async def client_course_placeholders_handler(message: types.Message):
+    course_name = message.text
+    await message.answer(
+        f"🚧 {hbold(course_name)}\n\n"
+        f"Этот курс находится в стадии разработки. Доступ откроется автоматически, как только материалы будут опубликованы!"
+    )

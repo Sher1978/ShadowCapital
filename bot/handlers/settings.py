@@ -60,15 +60,22 @@ async def client_settings_handler(message: types.Message):
         f"🆔 {hbold('ID:')} {user.get('tg_id')}\n"
         f"👤 {hbold('Имя:')} {user.get('full_name')}\n"
         f"🌍 {hbold('Часовой пояс:')} {user.get('timezone', 'UTC+0')}\n"
-        f"💎 {hbold('Качество (L1):')} {user.get('target_quality_l1') or 'Не задано'}\n"
-        f"🎬 {hbold('Сценарий:')} {user.get('scenario_type') or 'Не задан'}\n\n"
-        f"Ты можешь изменить свое имя или часовой пояс. Данные спринта (качество/сценарий) меняются только администратором."
+        f"🎭 {hbold('Привязанность:')} {user.get('attachment_type') or 'Не задан'}\n"
+        f"🏆 {hbold('Архетип:')} {user.get('archetype') or 'Не задан'}\n"
+        f"🧩 {hbold('Социотип:')} {user.get('sociotype') or 'Не задан'}\n\n"
+        f"💎 {hbold('Спринт Качество (L1):')} {user.get('target_quality_l1') or 'Не задано'}\n"
+        f"🎬 {hbold('Спринт Сценарий:')} {user.get('scenario_type') or 'Не задан'}\n\n"
+        f"Ты можешь изменить свои анкетные данные, имя или часовой пояс. Спринты (качество/сценарий) активируются только куратором."
     )
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     builder.button(text="✏️ Изменить Имя", callback_data="client_edit_name")
     builder.button(text="🌍 Изменить Часовой Пояс", callback_data="client_edit_tz")
+    builder.button(text="🎭 Изменить Привязанность", callback_data="client_edit_attachment")
+    builder.button(text="🏆 Изменить Архетип", callback_data="client_edit_archetype")
+    builder.button(text="🧩 Изменить Социотип", callback_data="client_edit_sociotype")
+    builder.button(text="📝 Пройти тест заново", url="https://shershadow.web.app/sfitest")
     builder.button(text="⚙️ Настроить время доставки", callback_data="edit_delivery_times")
     builder.adjust(1)
     
@@ -273,3 +280,114 @@ async def process_time_input(message: types.Message, state: FSMContext):
     
     from utils.scheduler import reload_admin_jobs
     await reload_admin_jobs(message.bot)
+
+
+# --- Interactive Profile Field Editing (Attachment, Archetype, Sociotype) ---
+
+@settings_router.callback_query(F.data == "client_edit_attachment")
+async def client_edit_attachment_start(callback: types.CallbackQuery):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text="Надежный", callback_data="save_client_attachment_Надежный")
+    builder.button(text="Тревожный", callback_data="save_client_attachment_Тревожный")
+    builder.button(text="Избегающий", callback_data="save_client_attachment_Избегающий")
+    builder.button(text="Тревожно-избегающий", callback_data="save_client_attachment_Тревожно-избегающий")
+    
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data="client_back_to_settings"))
+    builder.adjust(1)
+    
+    await callback.message.edit_text("Выберите ваш тип привязанности:", reply_markup=builder.as_markup())
+    await callback.answer()
+
+@settings_router.callback_query(F.data.startswith("save_client_attachment_"))
+async def save_client_attachment(callback: types.CallbackQuery):
+    val = callback.data.replace("save_client_attachment_", "")
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if user:
+        await FirestoreDB.update_user(user['id'], {"attachment_type": val})
+        await callback.message.answer(f"✅ Тип привязанности обновлен на: {hbold(val)}")
+    await callback.answer()
+    # Go back to settings view
+    await client_settings_handler(callback.message)
+    await callback.message.delete()
+
+@settings_router.callback_query(F.data == "client_edit_archetype")
+async def client_edit_archetype_start(callback: types.CallbackQuery):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text="Sovereign", callback_data="save_client_archetype_Sovereign")
+    builder.button(text="Expansion", callback_data="save_client_archetype_Expansion")
+    builder.button(text="Vitality", callback_data="save_client_archetype_Vitality")
+    builder.button(text="Architect", callback_data="save_client_archetype_Architect")
+    
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data="client_back_to_settings"))
+    builder.adjust(1)
+    
+    await callback.message.edit_text("Выберите ваш ведущий архетип:", reply_markup=builder.as_markup())
+    await callback.answer()
+
+@settings_router.callback_query(F.data.startswith("save_client_archetype_"))
+async def save_client_archetype(callback: types.CallbackQuery):
+    val = callback.data.replace("save_client_archetype_", "")
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if user:
+        await FirestoreDB.update_user(user['id'], {"archetype": val})
+        await callback.message.answer(f"✅ Ведущий архетип обновлен на: {hbold(val)}")
+    await callback.answer()
+    await client_settings_handler(callback.message)
+    await callback.message.delete()
+
+@settings_router.callback_query(F.data == "client_edit_sociotype")
+async def client_edit_sociotype_start(callback: types.CallbackQuery):
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    builder = InlineKeyboardBuilder()
+    
+    types_list = [
+        ("ИЛЭ", "ИЛЭ (Дон Кихот)"), ("СЭИ", "СЭИ (Дюма)"), 
+        ("ЭСО", "ЭСО (Гюго)"), ("ЛИИ", "ЛИИ (Робеспьер)"),
+        ("ЭИЭ", "ЭИЭ (Гамлет)"), ("ЛСИ", "ЛСИ (Максим Горький)"), 
+        ("СЛЭ", "СЛЭ (Жуков)"), ("ИЭИ", "ИЭИ (Есенин)"),
+        ("СЭЭ", "СЭЭ (Наполеон)"), ("ИЛИ", "ИЛИ (Бальзак)"), 
+        ("ЛИЭ", "ЛИЭ (Джек Лондон)"), ("ЭСИ", "ЭСИ (Драйзер)"),
+        ("ЛСЭ", "ЛСЭ (Штирлиц)"), ("ЭИИ", "ЭИИ (Достоевский)"), 
+        ("ИЭЭ", "ИЭЭ (Гексли)"), ("СЛИ", "СЛИ (Габен)")
+    ]
+    
+    for code, full_name in types_list:
+        builder.button(text=full_name, callback_data=f"save_client_socio_{code}")
+        
+    builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data="client_back_to_settings"))
+    builder.adjust(2)
+    
+    await callback.message.edit_text("Выберите ваш социотип:", reply_markup=builder.as_markup())
+    await callback.answer()
+
+@settings_router.callback_query(F.data.startswith("save_client_socio_"))
+async def save_client_sociotype(callback: types.CallbackQuery):
+    code = callback.data.replace("save_client_socio_", "")
+    types_map = {
+        "ИЛЭ": "ИЛЭ (Дон Кихот)", "СЭИ": "СЭИ (Дюма)", 
+        "ЭСО": "ЭСО (Гюго)", "ЛИИ": "ЛИИ (Робеспьер)",
+        "ЭИЭ": "ЭИЭ (Гамлет)", "ЛСИ": "ЛСИ (Максим Горький)", 
+        "СЛЭ": "СЛЭ (Жуков)", "ИЭИ": "ИЭИ (Есенин)",
+        "СЭЭ": "СЭЭ (Наполеон)", "ИЛИ": "ИЛИ (Бальзак)", 
+        "ЛИЭ": "ЛИЭ (Джек Лондон)", "ЭСИ": "ЭСИ (Драйзер)",
+        "ЛСЭ": "ЛСЭ (Штирлиц)", "ЭИИ": "ЭИИ (Достоевский)", 
+        "ИЭЭ": "ИЭЭ (Гексли)", "СЛИ": "СЛИ (Габен)"
+    }
+    val = types_map.get(code, code)
+    user = await FirestoreDB.get_user(callback.from_user.id)
+    if user:
+        await FirestoreDB.update_user(user['id'], {"sociotype": val})
+        await callback.message.answer(f"✅ Социотип обновлен на: {hbold(val)}")
+    await callback.answer()
+    await client_settings_handler(callback.message)
+    await callback.message.delete()
+
+@settings_router.callback_query(F.data == "client_back_to_settings")
+async def client_back_to_settings_callback(callback: types.CallbackQuery):
+    await callback.answer()
+    await client_settings_handler(callback.message)
+    await callback.message.delete()

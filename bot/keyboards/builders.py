@@ -1,7 +1,7 @@
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
+def get_main_keyboard(is_admin: bool = False, is_active: bool = True, access_status: str = "resident"):
     builder = ReplyKeyboardBuilder()
     
     if is_admin:
@@ -16,20 +16,32 @@ def get_main_keyboard(is_admin: bool = False, is_active: bool = True):
         return builder.as_markup(resize_keyboard=True)
 
     # Client-specific menu
-    if not is_active:
+    if is_active:
+        builder.button(text="🎯 Моя цель")
+        builder.button(text="🎯 Задание")
+        builder.button(text="📝 Вечерний Отчет")
+        builder.button(text="📈 Мои результаты")
+    else:
         builder.button(text="🚀 Активировать Спринт")
-        builder.adjust(1)
-        return builder.as_markup(resize_keyboard=True)
 
-    builder.button(text="🎯 Моя цель")
-    builder.button(text="🎯 Задание")
-    builder.button(text="📝 Вечерний Отчет")
-    builder.button(text="📈 Мои результаты")
-    builder.button(text="❓ Вопрос куратору")
+    # Resident level (always available for clients)
     builder.button(text="⚙️ Настройки")
+    builder.button(text="🔍 Сканирование")
+    builder.button(text="📱 Мой QR-код")
     builder.button(text="📖 Инструкция")
-    
-    builder.adjust(2, 2, 2)
+    builder.button(text="❓ Вопрос куратору")
+
+    # Ambassador level
+    if access_status in ["ambassador", "master"]:
+        builder.button(text="🧠 ME.OS (L1)")
+
+    # Master level
+    if access_status == "master":
+        builder.button(text="🧠 ME.OS (L2)")
+        builder.button(text="👥 WE.OS (L1)")
+        builder.button(text="👥 WE.OS (L2)")
+        
+    builder.adjust(2)
     return builder.as_markup(resize_keyboard=True)
 
 def get_navigation_keyboard(is_admin: bool = False, back_callback: str = None):
